@@ -43,4 +43,28 @@ describe("businessRuleSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("reports nested condition paths", () => {
+    const result = businessRuleSchema.safeParse({
+      id: "RULE-BILLING-001",
+      title: "Invalid",
+      domain: "billing",
+      type: "decision",
+      status: "active",
+      when: {
+        all: [
+          { field: "subscription.status", operator: "eq", value: "ACTIVE" },
+          { field: "payment.status", operator: "bad", value: "PAID" },
+        ],
+      },
+      then: [{ action: "allow" }],
+      createdAt: "2026-08-22",
+      updatedAt: "2026-08-22",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(["when", "all", 1, "operator"]);
+    }
+  });
 });

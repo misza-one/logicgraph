@@ -34,6 +34,7 @@ Requirements:
 
 ```bash
 pnpm install
+pnpm typecheck
 pnpm test
 pnpm build
 ```
@@ -55,6 +56,18 @@ This creates:
 ```
 
 Running `init` again will refuse to overwrite the existing config unless `--force` is supplied.
+
+Validate rule YAML:
+
+```bash
+node packages/cli/dist/src/index.js rules validate
+```
+
+Check project health:
+
+```bash
+node packages/cli/dist/src/index.js doctor
+```
 
 ## Example business rule
 
@@ -94,15 +107,12 @@ updatedAt: 2026-08-22
 
 ## Planned next steps
 
-1. `logicgraph rules validate`
-2. `logicgraph doctor`
-3. first-class `UIContract`
-4. scenarios (`GIVEN / WHEN / THEN`)
-5. in-memory impact graph
-6. CodeGraph adapter
-7. UI/Playwright verification
-8. MCP server
-9. LLM-assisted rule discovery
+1. in-memory relationship graph
+2. `logicgraph impact <field|rule|ui-contract>`
+3. CodeGraph adapter
+4. UI/Playwright verification
+5. MCP server
+6. LLM-assisted rule discovery
 
 ## Architectural principle
 
