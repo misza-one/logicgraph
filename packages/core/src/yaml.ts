@@ -37,7 +37,7 @@ export async function findYamlFiles(dir: string): Promise<string[]> {
       if (entry.isDirectory()) {
         return findYamlFiles(path);
       }
-      if (entry.isFile() && [".yaml", ".yml"].includes(extname(entry.name))) {
+      if ((entry.isFile() || entry.isSymbolicLink()) && [".yaml", ".yml"].includes(extname(entry.name))) {
         return [path];
       }
       return [];
@@ -76,5 +76,5 @@ export async function repositoryPathError(cwd: string, path: string): Promise<st
 
 function isInside(root: string, path: string): boolean {
   const target = relative(root, path);
-  return target === "" || (!target.startsWith("..") && !isAbsolute(target));
+  return target === "" || (target !== ".." && !target.startsWith(`..${sep}`) && !isAbsolute(target));
 }

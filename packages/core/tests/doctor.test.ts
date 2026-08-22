@@ -52,6 +52,20 @@ describe("runDoctor", () => {
     expect(result.checks.find((check) => check.message === "config.yaml")?.status).toBe("error");
   });
 
+  it("reports symlinked config outside the repository", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-config-"));
+    const outsideConfig = join(outsideDir, "config.yaml");
+    await mkdir(join(cwd, ".logicgraph"), { recursive: true });
+    await writeFile(outsideConfig, "version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\n", "utf8");
+    await symlink(outsideConfig, join(cwd, ".logicgraph", "config.yaml"));
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.find((check) => check.message === "config.yaml")?.details).toContain(".logicgraph/config.yaml resolves outside repository");
+  });
+
   it("reports missing configured YAML directories", async () => {
     const cwd = await project();
     await rm(join(cwd, ".logicgraph", "rules"), { recursive: true });
@@ -137,6 +151,32 @@ describe("runDoctor", () => {
     expect(result.ok).toBe(false);
     expect(result.checks.map((check) => check.message)).toContain("RULE-BILLING-001 references test outside repository tests/linked.test.ts");
   });
+
+  it("validates implementation file references without checking symbols", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export {};", "utf8");
+    await rule(cwd, { implementation: ["src/InvoiceService.ts#canDownload", "src/Missing.ts#missing"] });
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((check) => check.message)).toContain("RULE-BILLING-001 references missing implementation src/Missing.ts#missing");
+    expect(result.checks.map((check) => check.message)).not.toContain("RULE-BILLING-001 references missing implementation src/InvoiceService.ts#canDownload");
+  });
+
+  it("reports symlinked UI contract YAML sources outside the repository", async () => {
+    const cwd = await project();
+    const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-ui-"));
+    const outsideContract = join(outsideDir, "UI-INVOICE-001.yaml");
+    await writeFile(outsideContract, "id: UI-INVOICE-001\ntitle: Outside\nstatus: active\npage: InvoiceDetails\nelement:\n  id: download_invoice_button\n  role: button\ntrigger:\n  event: click\n", "utf8");
+    await symlink(outsideContract, join(cwd, ".logicgraph", "ui-contracts", "linked.yaml"));
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((check) => check.message)).toContain(".logicgraph/ui-contracts/linked.yaml is invalid");
+  });
 });
 
 async function project(): Promise<string> {
@@ -152,10 +192,10 @@ async function project(): Promise<string> {
   return cwd;
 }
 
-async function rule(cwd: string, options: { status?: string; tests?: string[]; uiContracts?: string[] } = {}): Promise<void> {
+async function rule(cwd: string, options: { status?: string; implementation?: string[]; tests?: string[]; uiContracts?: string[] } = {}): Promise<void> {
   await writeFile(
     join(cwd, ".logicgraph", "rules", "RULE-BILLING-001.yaml"),
-    `id: RULE-BILLING-001\ntitle: Paid customer may download invoice\ndomain: billing\ntype: decision\nstatus: ${options.status ?? "active"}\nthen:\n  - action: allow\ntests:\n${yamlList(options.tests ?? [])}uiContracts:\n${yamlList(options.uiContracts ?? [])}createdAt: 2026-08-22\nupdatedAt: 2026-08-22\n`,
+    `id: RULE-BILLING-001\ntitle: Paid customer may download invoice\ndomain: billing\ntype: decision\nstatus: ${options.status ?? "active"}\nthen:\n  - action: allow\nimplementation:\n${yamlList(options.implementation ?? [])}tests:\n${yamlList(options.tests ?? [])}uiContracts:\n${yamlList(options.uiContracts ?? [])}createdAt: 2026-08-22\nupdatedAt: 2026-08-22\n`,
     "utf8",
   );
 }

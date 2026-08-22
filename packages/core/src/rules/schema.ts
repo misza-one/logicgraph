@@ -4,11 +4,13 @@ import { scenarioSchema } from "../behavior/scenario.js";
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 const referencePathSchema = z.string().min(1);
 
-export const comparisonConditionSchema = z.object({
-  field: z.string().min(1),
-  operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "exists"]),
-  value: z.union([scalar, z.array(scalar)]).optional(),
-});
+export const comparisonConditionSchema = z
+  .object({
+    field: z.string().min(1),
+    operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "exists"]),
+    value: z.union([scalar, z.array(scalar)]).optional(),
+  })
+  .strict();
 
 export type Condition =
   | z.infer<typeof comparisonConditionSchema>
@@ -30,14 +32,17 @@ function validateCondition(input: unknown, context: z.RefinementCtx): void {
   }
 
   if ("all" in input) {
+    validateOnlyConditionKey(input, "all", context);
     validateConditionList(input.all, "all", context);
     return;
   }
   if ("any" in input) {
+    validateOnlyConditionKey(input, "any", context);
     validateConditionList(input.any, "any", context);
     return;
   }
   if ("not" in input) {
+    validateOnlyConditionKey(input, "not", context);
     addNestedIssues(conditionSchema.safeParse(input.not), ["not"], context);
     return;
   }
@@ -56,6 +61,14 @@ function validateConditionList(input: unknown, key: "all" | "any", context: z.Re
   }
 
   input.forEach((item, index) => addNestedIssues(conditionSchema.safeParse(item), [key, index], context));
+}
+
+function validateOnlyConditionKey(input: Record<string, unknown>, key: "all" | "any" | "not", context: z.RefinementCtx): void {
+  for (const name of Object.keys(input)) {
+    if (name !== key) {
+      context.addIssue({ code: "custom", path: [name], message: "Unknown condition key." });
+    }
+  }
 }
 
 function addNestedIssues(result: { success: true } | { success: false; error: z.ZodError }, path: PropertyKey[], context: z.RefinementCtx): void {

@@ -105,7 +105,13 @@ export function formatIssuePath(path: readonly PropertyKey[]): string {
 }
 
 function validateRuleFile(cwd: string, filePath: string): Promise<RuleValidationFile> {
-  return parseYamlFile(filePath)
+  return repositoryPathError(cwd, filePath)
+    .then((sourceError) => {
+      if (sourceError) {
+        return Promise.reject(new SourceError(sourceError));
+      }
+      return parseYamlFile(filePath);
+    })
     .then((input) => {
       const parsed = businessRuleSchema.safeParse(input);
       const id = readId(input);
@@ -133,9 +139,11 @@ function validateRuleFile(cwd: string, filePath: string): Promise<RuleValidation
       filePath,
       relativePath: relativePath(cwd, filePath),
       valid: false,
-      errors: [{ path: "(yaml)", message: error instanceof Error ? error.message : String(error) }],
+      errors: [{ path: error instanceof SourceError ? "(source)" : "(yaml)", message: error instanceof Error ? error.message : String(error) }],
     }));
 }
+
+class SourceError extends Error {}
 
 function findDuplicateRuleIds(files: RuleValidationFile[]): DuplicateRuleId[] {
   const byId = new Map<string, string[]>();

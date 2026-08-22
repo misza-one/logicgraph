@@ -29,7 +29,7 @@ The first milestone intentionally contains only the foundation:
 
 Requirements:
 
-- Node.js 22+
+- Node.js 22.12+
 - pnpm
 
 ```bash

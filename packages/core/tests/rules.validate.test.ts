@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { mkdtemp } from "node:fs/promises";
@@ -104,6 +104,34 @@ describe("validateRules", () => {
 
     expect(result.ok).toBe(false);
     expect(result.directoryError).toContain("outside repository");
+  });
+
+  it("accepts dot-prefixed source directories inside the repository", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    await mkdir(join(cwd, ".logicgraph", "..rules"), { recursive: true });
+    await writeFile(join(cwd, ".logicgraph", "config.yaml"), "version: 1\nrules: ..rules\nuiContracts: ui-contracts\njourneys: journeys\n", "utf8");
+    await writeFile(
+      join(cwd, ".logicgraph", "..rules", "RULE-BILLING-001.yaml"),
+      "id: RULE-BILLING-001\ntitle: Paid customer may download invoice\ndomain: billing\ntype: decision\nstatus: active\nthen:\n  - action: allow\ncreatedAt: 2026-08-22\nupdatedAt: 2026-08-22\n",
+      "utf8",
+    );
+
+    const result = await validateProjectRules({ cwd });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects symlinked rule YAML sources outside the repository", async () => {
+    const cwd = await project();
+    const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-rules-"));
+    const outsideRule = join(outsideDir, "RULE-BILLING-001.yaml");
+    await writeFile(outsideRule, "id: RULE-BILLING-001\ntitle: Outside\ndomain: billing\ntype: decision\nstatus: active\nthen:\n  - action: allow\ncreatedAt: 2026-08-22\nupdatedAt: 2026-08-22\n", "utf8");
+    await symlink(outsideRule, join(cwd, ".logicgraph", "rules", "linked.yaml"));
+
+    const result = await validateRules({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.files[0]?.errors[0]).toEqual({ path: "(source)", message: ".logicgraph/rules/linked.yaml resolves outside repository" });
   });
 });
 

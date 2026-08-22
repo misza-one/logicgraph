@@ -1,11 +1,16 @@
 import { join } from "node:path";
 import { logicGraphConfigSchema, type LogicGraphConfig } from "./schema.js";
-import { parseYamlFile, pathExists, relativePath } from "../yaml.js";
+import { parseYamlFile, pathExists, relativePath, repositoryPathError } from "../yaml.js";
 
 export async function loadLogicGraphConfig(cwd = process.cwd()): Promise<LogicGraphConfig> {
   const configPath = join(cwd, ".logicgraph", "config.yaml");
   if (!(await pathExists(configPath))) {
     throw new Error(`${relativePath(cwd, configPath)} is missing`);
+  }
+
+  const sourceError = await repositoryPathError(cwd, configPath);
+  if (sourceError) {
+    throw new Error(sourceError);
   }
 
   const parsed = logicGraphConfigSchema.safeParse(await parseYamlFile(configPath));

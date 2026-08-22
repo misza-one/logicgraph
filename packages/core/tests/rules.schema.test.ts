@@ -83,4 +83,20 @@ describe("businessRuleSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects unknown condition keys", () => {
+    const result = businessRuleSchema.safeParse({
+      id: "RULE-BILLING-001",
+      title: "Invalid",
+      domain: "billing",
+      type: "decision",
+      status: "active",
+      when: { field: "payment.status", operator: "eq", value: "PAID", typo: true },
+      then: [{ action: "allow" }],
+      createdAt: "2026-08-22",
+      updatedAt: "2026-08-22",
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

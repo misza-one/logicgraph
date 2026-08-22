@@ -81,6 +81,11 @@ async function loadConfig(cwd: string, configPath: string, checks: DoctorCheck[]
   }
 
   try {
+    const sourceError = await repositoryPathError(cwd, configPath);
+    if (sourceError) {
+      throw new Error(sourceError);
+    }
+
     const parsed = logicGraphConfigSchema.safeParse(await parseYamlFile(configPath));
     if (!parsed.success) {
       checks.push({
@@ -168,6 +173,11 @@ async function loadUiContracts(cwd: string, dir: string): Promise<LoadedUiContra
   for (const filePath of await findYamlFiles(dir)) {
     const file = relativePath(cwd, filePath);
     try {
+      const sourceError = await repositoryPathError(cwd, filePath);
+      if (sourceError) {
+        throw new Error(sourceError);
+      }
+
       const parsed = uiContractSchema.safeParse(await parseYamlFile(filePath));
       if (!parsed.success) {
         checks.push({
@@ -206,10 +216,19 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
   let missingTests = 0;
   let missingUiContracts = 0;
   let missingRules = 0;
+  let missingImplementations = 0;
 
   for (const rule of result.rules) {
+    for (const implementation of rule.implementation) {
+      const error = await fileReferenceError(cwd, rule.id, implementation, "implementation");
+      if (error) {
+        missingImplementations += 1;
+        checks.push({ section: "References", status: "error", message: error });
+      }
+    }
+
     for (const testPath of rule.tests) {
-      const error = await testReferenceError(cwd, rule.id, testPath);
+      const error = await fileReferenceError(cwd, rule.id, testPath, "test");
       if (error) {
         missingTests += 1;
         checks.push({ section: "References", status: "error", message: error });
@@ -225,8 +244,16 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
   }
 
   for (const { contract } of uiContracts.contracts) {
+    for (const implementation of contract.implementation) {
+      const error = await fileReferenceError(cwd, contract.id, implementation, "implementation");
+      if (error) {
+        missingImplementations += 1;
+        checks.push({ section: "References", status: "error", message: error });
+      }
+    }
+
     for (const testPath of contract.tests) {
-      const error = await testReferenceError(cwd, contract.id, testPath);
+      const error = await fileReferenceError(cwd, contract.id, testPath, "test");
       if (error) {
         missingTests += 1;
         checks.push({ section: "References", status: "error", message: error });
@@ -252,17 +279,20 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
   if (missingRules === 0 && validInputs) {
     checks.push({ section: "References", status: "ok", message: "rule references" });
   }
+  if (missingImplementations === 0 && validInputs) {
+    checks.push({ section: "References", status: "ok", message: "implementation references" });
+  }
 
   return checks;
 }
 
-async function testReferenceError(cwd: string, ownerId: string, testPath: string): Promise<string | undefined> {
-  const path = resolve(cwd, testPath);
+async function fileReferenceError(cwd: string, ownerId: string, reference: string, kind: "implementation" | "test"): Promise<string | undefined> {
+  const path = resolve(cwd, kind === "implementation" ? reference.split("#", 1)[0] ?? "" : reference);
   if (await repositoryPathError(cwd, path)) {
-    return `${ownerId} references test outside repository ${testPath}`;
+    return `${ownerId} references ${kind} outside repository ${reference}`;
   }
   if (!(await fileExists(path))) {
-    return `${ownerId} references missing test ${testPath}`;
+    return `${ownerId} references missing ${kind} ${reference}`;
   }
   return undefined;
 }
