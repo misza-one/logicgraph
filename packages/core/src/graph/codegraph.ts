@@ -101,16 +101,28 @@ export async function enrichImpactWithCodeGraph(
     return withImplementationResolution(impact, { status: "unavailable", reason: `CodeGraph sync failed: ${errorMessage(error)}` }, true, false);
   }
 
-  return {
-    ...impact,
-    codegraph: { enabled: true, initialized: true, synced: true },
-    nodes: await Promise.all(
-      impact.nodes.map(async (node) => node.kind === "implementation"
-        ? { ...node, codegraph: await resolveImplementation(node.label, cwd, adapter, depth) }
-        : node,
-      ),
-    ),
-  };
+  const nodes = await mapWithConcurrency(
+    impact.nodes,
+    async (node) => node.kind === "implementation"
+      ? { ...node, codegraph: await resolveImplementation(node.label, cwd, adapter, depth) }
+      : node,
+    4,
+  );
+
+  return { ...impact, codegraph: { enabled: true, initialized: true, synced: true }, nodes };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], map: (item: T) => Promise<R>, concurrency: number): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await map(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
 }
 
 function withImplementationResolution(
