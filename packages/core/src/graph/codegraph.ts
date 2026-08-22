@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileExists, repositoryPathError } from "../yaml.js";
@@ -142,13 +143,13 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   try {
     const matches = await adapter.query(parsed.symbol);
     const symbols = matches.map((match) => match.node);
-    const candidates = matchingSymbols(parsed, symbols, cwd);
+    const candidates = await matchingSymbols(parsed, symbols, cwd);
     if (candidates.length === 0) {
       return { status: "unresolved", reason: "symbol not found" };
     }
     if (candidates.length > 1) {
       const names = [...new Set(candidates.map((candidate) => candidate.qualifiedName ?? candidate.name))].join(", ");
-      return { status: "unresolved", reason: `symbol "${parsed.symbol}" is ambiguous in ${normalizePath(parsed.filePath, cwd)}; matches: ${names}. Qualify the reference with the qualified name.` };
+      return { status: "unresolved", reason: `symbol "${parsed.symbol}" is ambiguous in ${await normalizePath(parsed.filePath, cwd)}; matches: ${names}. Qualify the reference with the qualified name.` };
     }
     const symbol = candidates[0];
     const query = symbol.qualifiedName ?? symbol.name;
@@ -173,9 +174,27 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   }
 }
 
-function matchingSymbols(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[], cwd: string): CodeGraphSymbol[] {
-  const filePath = normalizePath(reference.filePath, cwd);
-  return symbols.filter((symbol) => normalizePath(symbol.filePath, cwd) === filePath && symbolMatches(symbol, reference.symbol));
+async function matchingSymbols(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[], cwd: string): Promise<CodeGraphSymbol[]> {
+  const filePath = await normalizePath(reference.filePath, cwd);
+  const results = await Promise.all(symbols.map(async (symbol) => ({ symbol, path: await normalizePath(symbol.filePath, cwd) })));
+  return results.filter((entry) => entry.path === filePath && symbolMatches(entry.symbol, reference.symbol)).map((entry) => entry.symbol);
+}
+
+// ponytail: lexical fallback for paths realpath cannot resolve (e.g. CodeGraph
+// paths whose casing differs on a case-sensitive volume).
+function normalizePathFallback(rel: string): string {
+  const segments: string[] = [];
+  for (const segment of rel.split("/")) {
+    if (segment === "" || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join("/");
 }
 
 function symbolMatches(symbol: CodeGraphSymbol, expected?: string): boolean {
@@ -195,22 +214,16 @@ function parseImplementationReference(reference: string): { filePath: string; sy
   return { filePath: filePath ?? "", symbol };
 }
 
-function normalizePath(path: string, cwd: string): string {
-  // relative() applies platform path semantics (Windows drive/root casing),
-  // so the result is repository-relative before any case folding.
-  const rel = relative(resolve(cwd), resolve(cwd, path)).replace(/\\/g, "/");
-  const segments: string[] = [];
-  for (const segment of rel.split("/")) {
-    if (segment === "" || segment === ".") {
-      continue;
-    }
-    if (segment === "..") {
-      segments.pop();
-      continue;
-    }
-    segments.push(process.platform === "win32" ? segment.toLowerCase() : segment);
+async function normalizePath(path: string, cwd: string): Promise<string> {
+  // Real paths compare equal across case-insensitive filesystems (Windows,
+  // default macOS) without having to guess the volume's case sensitivity.
+  try {
+    const root = await realpath(resolve(cwd));
+    const target = await realpath(resolve(cwd, path));
+    return normalizePathFallback(relative(root, target).replace(/\\/g, "/"));
+  } catch {
+    return normalizePathFallback(relative(resolve(cwd), resolve(cwd, path)).replace(/\\/g, "/"));
   }
-  return segments.join("/");
 }
 
 async function codegraphJson<T>(args: string[], cwd: string): Promise<T> {
