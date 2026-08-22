@@ -51,8 +51,13 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
   const edges = new Map<string, ImpactEdge>();
 
   const addNode = (node: ImpactNode): void => {
-    if (!nodes.has(node.id)) {
+    const existing = nodes.get(node.id);
+    if (!existing) {
       nodes.set(node.id, node);
+      return;
+    }
+    if (!existing.title && node.title) {
+      nodes.set(node.id, { ...node, title: node.title });
     }
   };
   const addEdge = (from: string, to: string, kind: ImpactEdge["kind"]): void => {
@@ -106,7 +111,7 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
 }
 
 export function getImpact(graph: RelationshipGraph, query: string): ImpactResult {
-  const startNode = graph.nodes.find((node) => node.label === query && ["field", "rule", "ui-contract"].includes(node.kind));
+  const startNode = graph.nodes.find((node) => node.label === query && node.kind === "rule") ?? graph.nodes.find((node) => node.label === query && node.kind === "ui-contract") ?? graph.nodes.find((node) => node.label === query && node.kind === "field");
   if (!startNode) {
     return { query, nodes: [], edges: [] };
   }
