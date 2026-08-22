@@ -1,8 +1,8 @@
-import { validateRules, type RuleValidationResult } from "@logicgraph/core";
+import { validateProjectRules, type RuleValidationResult } from "@logicgraph/core";
 
 export async function validateRulesCommand(): Promise<void> {
   try {
-    const result = await validateRules();
+    const result = await validateProjectRules();
     console.log(formatRuleValidation(result));
     if (!result.ok) {
       process.exitCode = 1;
@@ -15,6 +15,10 @@ export async function validateRulesCommand(): Promise<void> {
 
 export function formatRuleValidation(result: RuleValidationResult): string {
   const lines = ["Validating LogicGraph rules...", ""];
+
+  if (result.directoryError) {
+    lines.push(`✗ ${result.directoryError}`, "");
+  }
 
   for (const file of result.files) {
     if (file.valid) {

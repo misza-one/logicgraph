@@ -2,6 +2,8 @@ import { z } from "zod";
 import { behaviorResultSchema, scenarioSchema } from "../behavior/scenario.js";
 import { uiEventSchema } from "./events.js";
 
+const referencePathSchema = z.string().min(1);
+
 export const uiContractSchema = z.object({
   id: z.string().regex(/^UI-[A-Z0-9-]+$/),
   title: z.string().min(1),
@@ -17,8 +19,8 @@ export const uiContractSchema = z.object({
   }),
   requires: z.array(z.string().regex(/^RULE-[A-Z0-9-]+$/)).default([]),
   expected: z.array(behaviorResultSchema).default([]),
-  implementation: z.array(z.string()).default([]),
-  tests: z.array(z.string()).default([]),
+  implementation: z.array(referencePathSchema).default([]),
+  tests: z.array(referencePathSchema).default([]),
   scenarios: z.array(scenarioSchema).default([]),
 });
 

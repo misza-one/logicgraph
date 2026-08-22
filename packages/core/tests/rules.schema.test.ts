@@ -67,4 +67,20 @@ describe("businessRuleSchema", () => {
       expect(result.error.issues[0]?.path).toEqual(["when", "all", 1, "operator"]);
     }
   });
+
+  it("rejects empty test references", () => {
+    const result = businessRuleSchema.safeParse({
+      id: "RULE-BILLING-001",
+      title: "Invalid",
+      domain: "billing",
+      type: "decision",
+      status: "active",
+      then: [{ action: "allow" }],
+      tests: [""],
+      createdAt: "2026-08-22",
+      updatedAt: "2026-08-22",
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

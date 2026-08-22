@@ -38,6 +38,20 @@ describe("uiContractSchema", () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it("rejects empty test references", () => {
+    const parsed = uiContractSchema.safeParse({
+      id: "UI-INVOICE-001",
+      title: "Download invoice button",
+      status: "active",
+      page: "InvoiceDetails",
+      element: { id: "download_invoice_button", role: "button" },
+      trigger: { event: "click" },
+      tests: [""],
+    });
+
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe("scenarioSchema", () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { scenarioSchema } from "../behavior/scenario.js";
 
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const referencePathSchema = z.string().min(1);
 
 export const comparisonConditionSchema = z.object({
   field: z.string().min(1),
@@ -88,9 +89,9 @@ export const businessRuleSchema = z.object({
   when: conditionSchema.optional(),
   then: z.array(actionSchema).min(1),
   rationale: z.string().optional(),
-  implementation: z.array(z.string()).default([]),
-  tests: z.array(z.string()).default([]),
-  uiContracts: z.array(z.string()).default([]),
+  implementation: z.array(referencePathSchema).default([]),
+  tests: z.array(referencePathSchema).default([]),
+  uiContracts: z.array(z.string().regex(/^UI-[A-Z0-9-]+$/)).default([]),
   scenarios: z.array(scenarioSchema).default([]),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

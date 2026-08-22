@@ -1,6 +1,7 @@
 import { join } from "node:path";
+import { loadLogicGraphConfig } from "../config/load.js";
 import { businessRuleSchema, type BusinessRule } from "./schema.js";
-import { findYamlFiles, parseYamlFile, relativePath } from "../yaml.js";
+import { directoryExists, findYamlFiles, parseYamlFile, relativePath } from "../yaml.js";
 
 export interface ValidationIssue {
   path: string;
@@ -29,6 +30,7 @@ export interface RuleValidationResult {
   rules: BusinessRule[];
   validRuleCount: number;
   proposedRuleCount: number;
+  directoryError?: string;
   ok: boolean;
 }
 
@@ -40,6 +42,21 @@ export interface ValidateRulesOptions {
 export async function validateRules(options: ValidateRulesOptions = {}): Promise<RuleValidationResult> {
   const cwd = options.cwd ?? process.cwd();
   const rulesDir = options.rulesDir ?? join(cwd, ".logicgraph", "rules");
+
+  if (!(await directoryExists(rulesDir))) {
+    return {
+      cwd,
+      rulesDir,
+      files: [],
+      duplicateIds: [],
+      rules: [],
+      validRuleCount: 0,
+      proposedRuleCount: 0,
+      directoryError: `${relativePath(cwd, rulesDir)} is missing or is not a directory`,
+      ok: false,
+    };
+  }
+
   const files = await Promise.all(
     (await findYamlFiles(rulesDir)).map((filePath) => validateRuleFile(cwd, filePath)),
   );
@@ -57,6 +74,12 @@ export async function validateRules(options: ValidateRulesOptions = {}): Promise
     proposedRuleCount: rules.filter((rule) => rule.status === "proposed").length,
     ok: files.every((file) => file.valid) && duplicateIds.length === 0,
   };
+}
+
+export async function validateProjectRules(options: { cwd?: string } = {}): Promise<RuleValidationResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const config = await loadLogicGraphConfig(cwd);
+  return validateRules({ cwd, rulesDir: join(cwd, ".logicgraph", config.rules) });
 }
 
 export function formatIssuePath(path: readonly PropertyKey[]): string {

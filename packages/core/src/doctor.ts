@@ -1,8 +1,8 @@
-import { join } from "node:path";
+import { isAbsolute, join, relative as pathRelative, resolve } from "node:path";
 import { logicGraphConfigSchema, type LogicGraphConfig } from "./config/schema.js";
 import { validateRules, formatIssuePath, type RuleValidationResult } from "./rules/validate.js";
-import { uiContractSchema } from "./ui-contracts/schema.js";
-import { directoryExists, findYamlFiles, parseYamlFile, pathExists, relativePath } from "./yaml.js";
+import { uiContractSchema, type UIContract } from "./ui-contracts/schema.js";
+import { directoryExists, fileExists, findYamlFiles, parseYamlFile, pathExists, relativePath } from "./yaml.js";
 
 export type DoctorSection = "Project" | "Rules" | "References";
 export type DoctorStatus = "ok" | "warning" | "error";
@@ -25,6 +25,17 @@ export interface DoctorResult {
 
 export interface DoctorOptions {
   cwd?: string;
+}
+
+interface LoadedUiContract {
+  contract: UIContract;
+  relativePath: string;
+}
+
+interface LoadedUiContracts {
+  ids: Set<string>;
+  contracts: LoadedUiContract[];
+  checks: DoctorCheck[];
 }
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorResult> {
@@ -98,7 +109,11 @@ function ruleChecks(result: RuleValidationResult): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
   const invalidFiles = result.files.filter((file) => !file.valid);
 
-  if (invalidFiles.length === 0 && result.duplicateIds.length === 0) {
+  if (result.directoryError) {
+    checks.push({ section: "Rules", status: "error", message: result.directoryError });
+  }
+
+  if (!result.directoryError && invalidFiles.length === 0 && result.duplicateIds.length === 0) {
     checks.push({ section: "Rules", status: "ok", message: `${result.validRuleCount} valid ${plural(result.validRuleCount, "rule")}` });
   }
 
@@ -127,46 +142,68 @@ function ruleChecks(result: RuleValidationResult): DoctorCheck[] {
   return checks;
 }
 
-async function loadUiContracts(cwd: string, dir: string): Promise<{ ids: Set<string>; checks: DoctorCheck[] }> {
+async function loadUiContracts(cwd: string, dir: string): Promise<LoadedUiContracts> {
   const ids = new Set<string>();
+  const contracts: LoadedUiContract[] = [];
   const checks: DoctorCheck[] = [];
+  const byId = new Map<string, string[]>();
+
+  if (!(await directoryExists(dir))) {
+    return {
+      ids,
+      contracts,
+      checks: [{ section: "References", status: "error", message: `${relativePath(cwd, dir)} is missing or is not a directory` }],
+    };
+  }
 
   for (const filePath of await findYamlFiles(dir)) {
+    const file = relativePath(cwd, filePath);
     try {
       const parsed = uiContractSchema.safeParse(await parseYamlFile(filePath));
       if (!parsed.success) {
         checks.push({
           section: "References",
           status: "error",
-          message: `${relativePath(cwd, filePath)} is invalid`,
+          message: `${file} is invalid`,
           details: parsed.error.issues.map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`),
         });
         continue;
       }
       ids.add(parsed.data.id);
+      contracts.push({ contract: parsed.data, relativePath: file });
+      byId.set(parsed.data.id, [...(byId.get(parsed.data.id) ?? []), file]);
     } catch (error) {
       checks.push({
         section: "References",
         status: "error",
-        message: `${relativePath(cwd, filePath)} is invalid`,
+        message: `${file} is invalid`,
         details: [error instanceof Error ? error.message : String(error)],
       });
     }
   }
 
-  return { ids, checks };
+  for (const [id, files] of byId) {
+    if (files.length > 1) {
+      checks.push({ section: "References", status: "error", message: `${id} is duplicated`, details: files });
+    }
+  }
+
+  return { ids, contracts, checks };
 }
 
-async function referenceChecks(cwd: string, result: RuleValidationResult, uiContracts: { ids: Set<string>; checks: DoctorCheck[] }): Promise<DoctorCheck[]> {
+async function referenceChecks(cwd: string, result: RuleValidationResult, uiContracts: LoadedUiContracts): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [...uiContracts.checks];
+  const ruleIds = new Set(result.rules.map((rule) => rule.id));
   let missingTests = 0;
   let missingUiContracts = 0;
+  let missingRules = 0;
 
   for (const rule of result.rules) {
     for (const testPath of rule.tests) {
-      if (!(await pathExists(join(cwd, testPath)))) {
+      const error = await testReferenceError(cwd, rule.id, testPath);
+      if (error) {
         missingTests += 1;
-        checks.push({ section: "References", status: "error", message: `${rule.id} references missing test ${testPath}` });
+        checks.push({ section: "References", status: "error", message: error });
       }
     }
 
@@ -178,14 +215,52 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
     }
   }
 
-  if (missingTests === 0) {
+  for (const { contract } of uiContracts.contracts) {
+    for (const testPath of contract.tests) {
+      const error = await testReferenceError(cwd, contract.id, testPath);
+      if (error) {
+        missingTests += 1;
+        checks.push({ section: "References", status: "error", message: error });
+      }
+    }
+
+    for (const ruleId of contract.requires) {
+      if (!ruleIds.has(ruleId)) {
+        missingRules += 1;
+        checks.push({ section: "References", status: "error", message: `${contract.id} references missing rule ${ruleId}` });
+      }
+    }
+  }
+
+  const validInputs = result.files.every((file) => file.valid) && uiContracts.checks.every((check) => check.status !== "error");
+
+  if (missingTests === 0 && validInputs) {
     checks.push({ section: "References", status: "ok", message: "test references" });
   }
-  if (missingUiContracts === 0 && uiContracts.checks.every((check) => check.status !== "error")) {
+  if (missingUiContracts === 0 && validInputs) {
     checks.push({ section: "References", status: "ok", message: "UI contract references" });
+  }
+  if (missingRules === 0 && validInputs) {
+    checks.push({ section: "References", status: "ok", message: "rule references" });
   }
 
   return checks;
+}
+
+async function testReferenceError(cwd: string, ownerId: string, testPath: string): Promise<string | undefined> {
+  const path = resolve(cwd, testPath);
+  if (!isInside(cwd, path)) {
+    return `${ownerId} references test outside repository ${testPath}`;
+  }
+  if (!(await fileExists(path))) {
+    return `${ownerId} references missing test ${testPath}`;
+  }
+  return undefined;
+}
+
+function isInside(root: string, path: string): boolean {
+  const relative = pathRelative(root, path);
+  return relative === "" || (!relative.startsWith("..") && !isAbsolute(relative));
 }
 
 function plural(count: number, word: string): string {

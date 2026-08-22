@@ -20,16 +20,16 @@ export async function directoryExists(path: string): Promise<boolean> {
   }
 }
 
-export async function findYamlFiles(dir: string): Promise<string[]> {
-  let entries;
+export async function fileExists(path: string): Promise<boolean> {
   try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
+    return (await stat(path)).isFile();
+  } catch {
+    return false;
   }
+}
+
+export async function findYamlFiles(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
 
   const files = await Promise.all(
     entries.map(async (entry) => {
@@ -53,8 +53,4 @@ export async function parseYamlFile(path: string): Promise<unknown> {
 
 export function relativePath(from: string, to: string): string {
   return relative(from, to).split(sep).join("/");
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
 }
