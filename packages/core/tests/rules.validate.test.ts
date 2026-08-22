@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { validateProjectRules, validateRules } from "../src/rules/validate.js";
@@ -91,6 +91,19 @@ describe("validateRules", () => {
 
     expect(result.ok).toBe(false);
     expect(result.directoryError).toBe(".logicgraph/rules is missing or is not a directory");
+  });
+
+  it("rejects configured rules directories outside the repository", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    const outsideRules = await mkdtemp(join(tmpdir(), "logicgraph-rules-"));
+    const configRulesPath = relative(join(cwd, ".logicgraph"), outsideRules);
+    await mkdir(join(cwd, ".logicgraph"), { recursive: true });
+    await writeFile(join(cwd, ".logicgraph", "config.yaml"), `version: 1\nrules: ${configRulesPath}\nuiContracts: ui-contracts\njourneys: journeys\n`, "utf8");
+
+    const result = await validateProjectRules({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.directoryError).toContain("outside repository");
   });
 });
 

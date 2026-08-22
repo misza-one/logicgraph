@@ -1,8 +1,8 @@
-import { isAbsolute, join, relative as pathRelative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { logicGraphConfigSchema, type LogicGraphConfig } from "./config/schema.js";
 import { validateRules, formatIssuePath, type RuleValidationResult } from "./rules/validate.js";
 import { uiContractSchema, type UIContract } from "./ui-contracts/schema.js";
-import { directoryExists, fileExists, findYamlFiles, parseYamlFile, pathExists, relativePath } from "./yaml.js";
+import { directoryExists, fileExists, findYamlFiles, parseYamlFile, pathExists, relativePath, repositoryPathError } from "./yaml.js";
 
 export type DoctorSection = "Project" | "Rules" | "References";
 export type DoctorStatus = "ok" | "warning" | "error";
@@ -51,13 +51,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorResu
   });
 
   const config = await loadConfig(cwd, configPath, checks);
-  const ruleValidation = await validateRules({ cwd, rulesDir: join(root, config?.rules ?? "rules") });
+  const ruleValidation = await validateRules({ cwd, rulesDir: resolve(root, config?.rules ?? "rules") });
   checks.push(...ruleChecks(ruleValidation));
   checks.push(
     ...(await referenceChecks(
       cwd,
       ruleValidation,
-      await loadUiContracts(cwd, join(root, config?.uiContracts ?? "ui-contracts")),
+      await loadUiContracts(cwd, resolve(root, config?.uiContracts ?? "ui-contracts")),
     )),
   );
 
@@ -147,6 +147,15 @@ async function loadUiContracts(cwd: string, dir: string): Promise<LoadedUiContra
   const contracts: LoadedUiContract[] = [];
   const checks: DoctorCheck[] = [];
   const byId = new Map<string, string[]>();
+  const sourceError = await repositoryPathError(cwd, dir);
+
+  if (sourceError) {
+    return {
+      ids,
+      contracts,
+      checks: [{ section: "References", status: "error", message: sourceError }],
+    };
+  }
 
   if (!(await directoryExists(dir))) {
     return {
@@ -232,7 +241,7 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
     }
   }
 
-  const validInputs = result.files.every((file) => file.valid) && uiContracts.checks.every((check) => check.status !== "error");
+  const validInputs = result.ok && uiContracts.checks.every((check) => check.status !== "error");
 
   if (missingTests === 0 && validInputs) {
     checks.push({ section: "References", status: "ok", message: "test references" });
@@ -249,18 +258,13 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
 
 async function testReferenceError(cwd: string, ownerId: string, testPath: string): Promise<string | undefined> {
   const path = resolve(cwd, testPath);
-  if (!isInside(cwd, path)) {
+  if (await repositoryPathError(cwd, path)) {
     return `${ownerId} references test outside repository ${testPath}`;
   }
   if (!(await fileExists(path))) {
     return `${ownerId} references missing test ${testPath}`;
   }
   return undefined;
-}
-
-function isInside(root: string, path: string): boolean {
-  const relative = pathRelative(root, path);
-  return relative === "" || (!relative.startsWith("..") && !isAbsolute(relative));
 }
 
 function plural(count: number, word: string): string {

@@ -1,7 +1,7 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import { businessRuleSchema, type BusinessRule } from "./schema.js";
-import { directoryExists, findYamlFiles, parseYamlFile, relativePath } from "../yaml.js";
+import { directoryExists, findYamlFiles, parseYamlFile, relativePath, repositoryPathError } from "../yaml.js";
 
 export interface ValidationIssue {
   path: string;
@@ -42,19 +42,14 @@ export interface ValidateRulesOptions {
 export async function validateRules(options: ValidateRulesOptions = {}): Promise<RuleValidationResult> {
   const cwd = options.cwd ?? process.cwd();
   const rulesDir = options.rulesDir ?? join(cwd, ".logicgraph", "rules");
+  const sourceError = await repositoryPathError(cwd, rulesDir);
+
+  if (sourceError) {
+    return invalidRulesDirectory(cwd, rulesDir, sourceError);
+  }
 
   if (!(await directoryExists(rulesDir))) {
-    return {
-      cwd,
-      rulesDir,
-      files: [],
-      duplicateIds: [],
-      rules: [],
-      validRuleCount: 0,
-      proposedRuleCount: 0,
-      directoryError: `${relativePath(cwd, rulesDir)} is missing or is not a directory`,
-      ok: false,
-    };
+    return invalidRulesDirectory(cwd, rulesDir, `${relativePath(cwd, rulesDir)} is missing or is not a directory`);
   }
 
   const files = await Promise.all(
@@ -79,7 +74,21 @@ export async function validateRules(options: ValidateRulesOptions = {}): Promise
 export async function validateProjectRules(options: { cwd?: string } = {}): Promise<RuleValidationResult> {
   const cwd = options.cwd ?? process.cwd();
   const config = await loadLogicGraphConfig(cwd);
-  return validateRules({ cwd, rulesDir: join(cwd, ".logicgraph", config.rules) });
+  return validateRules({ cwd, rulesDir: resolve(cwd, ".logicgraph", config.rules) });
+}
+
+function invalidRulesDirectory(cwd: string, rulesDir: string, directoryError: string): RuleValidationResult {
+  return {
+    cwd,
+    rulesDir,
+    files: [],
+    duplicateIds: [],
+    rules: [],
+    validRuleCount: 0,
+    proposedRuleCount: 0,
+    directoryError,
+    ok: false,
+  };
 }
 
 export function formatIssuePath(path: readonly PropertyKey[]): string {

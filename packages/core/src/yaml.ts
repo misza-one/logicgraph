@@ -1,6 +1,6 @@
-import { access, readdir, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
-import { extname, join, relative, sep } from "node:path";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import YAML from "yaml";
 
 export async function pathExists(path: string): Promise<boolean> {
@@ -53,4 +53,28 @@ export async function parseYamlFile(path: string): Promise<unknown> {
 
 export function relativePath(from: string, to: string): string {
   return relative(from, to).split(sep).join("/");
+}
+
+export async function repositoryPathError(cwd: string, path: string): Promise<string | undefined> {
+  const root = resolve(cwd);
+  const candidate = resolve(path);
+
+  if (!isInside(root, candidate)) {
+    return `${relativePath(cwd, path)} is outside repository`;
+  }
+
+  if (!(await pathExists(path))) {
+    return undefined;
+  }
+
+  if (!isInside(await realpath(cwd), await realpath(path))) {
+    return `${relativePath(cwd, path)} resolves outside repository`;
+  }
+
+  return undefined;
+}
+
+function isInside(root: string, path: string): boolean {
+  const target = relative(root, path);
+  return target === "" || (!target.startsWith("..") && !isAbsolute(target));
 }

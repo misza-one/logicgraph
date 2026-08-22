@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { mkdtemp } from "node:fs/promises";
@@ -62,6 +62,25 @@ describe("runDoctor", () => {
     expect(result.ok).toBe(false);
     expect(result.checks.map((check) => check.message)).toContain(".logicgraph/rules is missing or is not a directory");
     expect(result.checks.map((check) => check.message)).toContain(".logicgraph/ui-contracts is missing or is not a directory");
+    expect(result.checks.map((check) => check.message)).not.toContain("test references");
+    expect(result.checks.map((check) => check.message)).not.toContain("UI contract references");
+    expect(result.checks.map((check) => check.message)).not.toContain("rule references");
+  });
+
+  it("reports configured source directories outside the repository", async () => {
+    const cwd = await project();
+    const outsideRules = await mkdtemp(join(tmpdir(), "logicgraph-rules-"));
+    const outsideUiContracts = await mkdtemp(join(tmpdir(), "logicgraph-ui-"));
+    await writeFile(
+      join(cwd, ".logicgraph", "config.yaml"),
+      `version: 1\nrules: ${relative(join(cwd, ".logicgraph"), outsideRules)}\nuiContracts: ${relative(join(cwd, ".logicgraph"), outsideUiContracts)}\njourneys: journeys\n`,
+      "utf8",
+    );
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.filter((check) => check.message.includes("outside repository"))).toHaveLength(2);
   });
 
   it("reports UI contract references to missing rules and tests", async () => {
@@ -103,6 +122,20 @@ describe("runDoctor", () => {
     expect(result.ok).toBe(false);
     expect(result.checks.map((check) => check.message)).toContain("RULE-BILLING-001 references missing test tests");
     expect(result.checks.map((check) => check.message)).toContain(`RULE-BILLING-001 references test outside repository ${relative(cwd, outsideTest)}`);
+  });
+
+  it("rejects symlinked test references that resolve outside the repository", async () => {
+    const cwd = await project();
+    const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));
+    const outsideTest = join(outsideDir, "outside.test.ts");
+    await writeFile(outsideTest, "test('outside', () => {});", "utf8");
+    await symlink(outsideTest, join(cwd, "tests", "linked.test.ts"));
+    await rule(cwd, { tests: ["tests/linked.test.ts"] });
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((check) => check.message)).toContain("RULE-BILLING-001 references test outside repository tests/linked.test.ts");
   });
 });
 
