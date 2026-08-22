@@ -43,10 +43,14 @@ pnpm test
 pnpm build
 ```
 
-Build the CLI, then run it in another repository:
+Build the CLI, then run it in another repository. Set the path to the LogicGraph checkout once:
 
 ```bash
-node packages/cli/dist/src/index.js init
+LOGICGRAPH_DIR=/path/to/logicgraph
+```
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" init
 ```
 
 This creates:
@@ -64,21 +68,21 @@ Running `init` again will refuse to overwrite the existing config unless `--forc
 Validate rule YAML:
 
 ```bash
-node packages/cli/dist/src/index.js rules validate
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" rules validate
 ```
 
 Check project health:
 
 ```bash
-node packages/cli/dist/src/index.js doctor
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" doctor
 ```
 
 Show everything connected to a field, rule, or UI contract:
 
 ```bash
-node packages/cli/dist/src/index.js impact invoice.downloadAllowed
-node packages/cli/dist/src/index.js impact RULE-BILLING-001
-node packages/cli/dist/src/index.js impact UI-INVOICE-001
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact invoice.downloadAllowed
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact RULE-BILLING-001
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact UI-INVOICE-001
 ```
 
 ## Example business rule
