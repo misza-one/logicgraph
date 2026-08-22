@@ -52,6 +52,19 @@ describe("runDoctor", () => {
     expect(result.checks.find((check) => check.message === "config.yaml")?.status).toBe("error");
   });
 
+  it("does not report healthy references when config is missing", async () => {
+    const cwd = await project();
+    await rm(join(cwd, ".logicgraph", "config.yaml"));
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((check) => check.message)).not.toContain("test references");
+    expect(result.checks.map((check) => check.message)).not.toContain("UI contract references");
+    expect(result.checks.map((check) => check.message)).not.toContain("rule references");
+    expect(result.checks.map((check) => check.message)).not.toContain("implementation references");
+  });
+
   it("reports symlinked config outside the repository", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
     const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-config-"));

@@ -59,6 +59,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorResu
       cwd,
       ruleValidation,
       await loadUiContracts(cwd, resolve(root, config?.uiContracts ?? "ui-contracts")),
+      Boolean(config),
     )),
   );
 
@@ -222,7 +223,7 @@ async function loadUiContracts(cwd: string, dir: string): Promise<LoadedUiContra
   return { ids, contracts, checks };
 }
 
-async function referenceChecks(cwd: string, result: RuleValidationResult, uiContracts: LoadedUiContracts): Promise<DoctorCheck[]> {
+async function referenceChecks(cwd: string, result: RuleValidationResult, uiContracts: LoadedUiContracts, configValid: boolean): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [...uiContracts.checks];
   const ruleIds = new Set(result.rules.map((rule) => rule.id));
   let missingTests = 0;
@@ -280,7 +281,7 @@ async function referenceChecks(cwd: string, result: RuleValidationResult, uiCont
     }
   }
 
-  const validInputs = result.ok && uiContracts.checks.every((check) => check.status !== "error");
+  const validInputs = configValid && result.ok && uiContracts.checks.every((check) => check.status !== "error");
 
   if (missingTests === 0 && validInputs) {
     checks.push({ section: "References", status: "ok", message: "test references" });
