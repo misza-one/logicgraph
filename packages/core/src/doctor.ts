@@ -51,6 +51,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorResu
   });
 
   const config = await loadConfig(cwd, configPath, checks);
+  checks.push(await configuredDirectoryCheck(cwd, resolve(root, config?.journeys ?? "journeys"), "journeys directory"));
   const ruleValidation = await validateRules({ cwd, rulesDir: resolve(root, config?.rules ?? "rules") });
   checks.push(...ruleChecks(ruleValidation));
   checks.push(
@@ -72,6 +73,17 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorResu
     warningCount,
     ok: errorCount === 0,
   };
+}
+
+async function configuredDirectoryCheck(cwd: string, dir: string, message: string): Promise<DoctorCheck> {
+  const sourceError = await repositoryPathError(cwd, dir);
+  if (sourceError) {
+    return { section: "Project", status: "error", message, details: [sourceError] };
+  }
+  if (!(await directoryExists(dir))) {
+    return { section: "Project", status: "error", message, details: [`${relativePath(cwd, dir)} is missing or is not a directory`] };
+  }
+  return { section: "Project", status: "ok", message };
 }
 
 async function loadConfig(cwd: string, configPath: string, checks: DoctorCheck[]): Promise<LogicGraphConfig | undefined> {

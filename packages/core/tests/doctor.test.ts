@@ -97,6 +97,36 @@ describe("runDoctor", () => {
     expect(result.checks.filter((check) => check.message.includes("outside repository"))).toHaveLength(2);
   });
 
+  it("reports missing configured journeys directory", async () => {
+    const cwd = await project();
+    await rm(join(cwd, ".logicgraph", "journeys"), { recursive: true });
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks).toContainEqual({
+      section: "Project",
+      status: "error",
+      message: "journeys directory",
+      details: [".logicgraph/journeys is missing or is not a directory"],
+    });
+  });
+
+  it("reports configured journeys directory outside the repository", async () => {
+    const cwd = await project();
+    const outsideJourneys = await mkdtemp(join(tmpdir(), "logicgraph-journeys-"));
+    await writeFile(
+      join(cwd, ".logicgraph", "config.yaml"),
+      `version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: ${relative(join(cwd, ".logicgraph"), outsideJourneys)}\n`,
+      "utf8",
+    );
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.find((check) => check.message === "journeys directory")?.details?.[0]).toContain("outside repository");
+  });
+
   it("reports UI contract references to missing rules and tests", async () => {
     const cwd = await project();
     await uiContract(cwd, "UI-INVOICE-001", { requires: ["RULE-MISSING-001"], tests: ["tests/missing.spec.ts"] });
@@ -183,6 +213,7 @@ async function project(): Promise<string> {
   const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
   await mkdir(join(cwd, ".logicgraph", "rules"), { recursive: true });
   await mkdir(join(cwd, ".logicgraph", "ui-contracts"), { recursive: true });
+  await mkdir(join(cwd, ".logicgraph", "journeys"), { recursive: true });
   await mkdir(join(cwd, "tests"), { recursive: true });
   await writeFile(
     join(cwd, ".logicgraph", "config.yaml"),
