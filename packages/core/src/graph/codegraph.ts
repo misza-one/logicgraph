@@ -201,11 +201,12 @@ function normalizePathFallback(rel: string): string {
       continue;
     }
     if (segment === "..") {
-      if (segments.length > 0) {
+      // A `..` only cancels a real directory; consecutive parent segments
+      // are preserved so paths outside the repository cannot collapse into
+      // an in-repository suffix and match the wrong file.
+      if (segments.length > 0 && segments[segments.length - 1] !== "..") {
         segments.pop();
       } else {
-        // Preserve leading parent segments so paths outside the repository
-        // cannot collapse into an in-repository suffix and match the wrong file.
         segments.push("..");
       }
       continue;
