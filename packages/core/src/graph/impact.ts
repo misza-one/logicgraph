@@ -51,7 +51,9 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
   const edges = new Map<string, ImpactEdge>();
 
   const addNode = (node: ImpactNode): void => {
-    nodes.set(node.id, node);
+    if (!nodes.has(node.id)) {
+      nodes.set(node.id, node);
+    }
   };
   const addEdge = (from: string, to: string, kind: ImpactEdge["kind"]): void => {
     edges.set(`${from}->${to}:${kind}`, { from, to, kind });
