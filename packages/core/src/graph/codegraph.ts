@@ -227,7 +227,9 @@ async function normalizePath(path: string, cwd: string): Promise<string> {
 }
 
 async function codegraphJson<T>(args: string[], cwd: string): Promise<T> {
-  const { stdout } = await run("codegraph", args, { cwd });
+  // ponytail: 16 MiB buffer covers large impact subgraphs; stream the JSON if
+  // repositories outgrow this.
+  const { stdout } = await run("codegraph", args, { cwd, maxBuffer: 16 * 1024 * 1024 });
   return JSON.parse(stdout) as T;
 }
 
