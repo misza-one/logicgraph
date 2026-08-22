@@ -132,10 +132,15 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   try {
     const matches = await adapter.query(parsed.symbol);
     const symbols = matches.map((match) => match.node);
-    const symbol = bestMatch(parsed, symbols, cwd);
-    if (!symbol) {
+    const candidates = matchingSymbols(parsed, symbols, cwd);
+    if (candidates.length === 0) {
       return { status: "unresolved", reason: "symbol not found" };
     }
+    if (candidates.length > 1) {
+      const names = [...new Set(candidates.map((candidate) => candidate.qualifiedName ?? candidate.name))].join(", ");
+      return { status: "unresolved", reason: `symbol "${parsed.symbol}" is ambiguous in ${normalizePath(parsed.filePath, cwd)}; matches: ${names}. Qualify the reference with the qualified name.` };
+    }
+    const symbol = candidates[0];
     const query = symbol.qualifiedName ?? symbol.name;
     let affected;
     try {
@@ -155,9 +160,9 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   }
 }
 
-function bestMatch(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[], cwd: string): CodeGraphSymbol | undefined {
+function matchingSymbols(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[], cwd: string): CodeGraphSymbol[] {
   const filePath = normalizePath(reference.filePath, cwd);
-  return symbols.find((symbol) => normalizePath(symbol.filePath, cwd) === filePath && symbolMatches(symbol, reference.symbol));
+  return symbols.filter((symbol) => normalizePath(symbol.filePath, cwd) === filePath && symbolMatches(symbol, reference.symbol));
 }
 
 function symbolMatches(symbol: CodeGraphSymbol, expected?: string): boolean {

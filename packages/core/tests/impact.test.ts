@@ -151,6 +151,24 @@ describe("impact graph", () => {
     expect(implementation(result)?.status).toBe("resolved");
   });
 
+  it("rejects references that match several members in the same file", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "class A { validate() {} } class B { validate() {} }", "utf8");
+    const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/InvoiceService.ts#validate"] }], []);
+    const impact = getImpact(graph, "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ symbols: [
+      { id: "function:1", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "A.validate" },
+      { id: "function:2", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 2, qualifiedName: "B.validate" },
+    ] }), { cwd });
+
+    const codegraph = implementation(result) as { status: string; reason: string };
+    expect(codegraph.status).toBe("unresolved");
+    expect(codegraph.reason).toContain("ambiguous in src/InvoiceService.ts");
+    expect(codegraph.reason).toContain("A.validate, B.validate");
+  });
+
   it("leaves affected null when the impact query name is ambiguous", async () => {
     const cwd = await project();
     await mkdir(join(cwd, "src"), { recursive: true });
