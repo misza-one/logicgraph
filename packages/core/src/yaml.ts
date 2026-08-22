@@ -28,20 +28,35 @@ export async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-export async function findYamlFiles(dir: string, cwd?: string): Promise<string[]> {
+export async function findYamlFiles(dir: string, cwd?: string, seen = new Set<string>()): Promise<string[]> {
+  const canonicalDir = await realpath(dir);
+  if (seen.has(canonicalDir)) {
+    return [];
+  }
+  seen.add(canonicalDir);
+
   const entries = await readdir(dir, { withFileTypes: true });
 
   const files = await Promise.all(
     entries.map(async (entry) => {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
-        return findYamlFiles(path, cwd);
+        return findYamlFiles(path, cwd, seen);
       }
-      if (entry.isSymbolicLink() && (await stat(path)).isDirectory()) {
-        if (cwd && (await repositoryPathError(cwd, path))) {
+      if (entry.isSymbolicLink()) {
+        let stats;
+        try {
+          stats = await stat(path);
+        } catch {
           return [path];
         }
-        return findYamlFiles(path, cwd);
+
+        if (stats.isDirectory()) {
+          if (cwd && (await repositoryPathError(cwd, path))) {
+            return [path];
+          }
+          return findYamlFiles(path, cwd, seen);
+        }
       }
       if ((entry.isFile() || entry.isSymbolicLink()) && [".yaml", ".yml"].includes(extname(entry.name))) {
         return [path];

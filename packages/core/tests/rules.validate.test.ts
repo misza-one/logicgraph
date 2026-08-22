@@ -160,6 +160,32 @@ describe("validateRules", () => {
     expect(result.ok).toBe(false);
     expect(result.files[0]?.errors[0]).toEqual({ path: "(source)", message: ".logicgraph/rules/group resolves outside repository" });
   });
+
+  it("reports dangling YAML symlinks without aborting the scan", async () => {
+    const cwd = await project();
+    await rule(cwd, "RULE-BILLING-001.yaml", "RULE-BILLING-001");
+    await symlink("missing.yaml", join(cwd, ".logicgraph", "rules", "broken.yaml"));
+
+    const result = await validateRules({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.files.map((file) => file.relativePath)).toEqual([
+      ".logicgraph/rules/RULE-BILLING-001.yaml",
+      ".logicgraph/rules/broken.yaml",
+    ]);
+    expect(result.files[1]?.errors[0]?.path).toBe("(yaml)");
+  });
+
+  it("does not recurse forever through directory symlink cycles", async () => {
+    const cwd = await project();
+    await rule(cwd, "RULE-BILLING-001.yaml", "RULE-BILLING-001");
+    await symlink(".", join(cwd, ".logicgraph", "rules", "group"));
+
+    const result = await validateRules({ cwd });
+
+    expect(result.ok).toBe(true);
+    expect(result.files.map((file) => file.relativePath)).toEqual([".logicgraph/rules/RULE-BILLING-001.yaml"]);
+  });
 });
 
 async function project(): Promise<string> {
