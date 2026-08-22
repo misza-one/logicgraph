@@ -182,7 +182,7 @@ async function loadUiContracts(cwd: string, dir: string): Promise<LoadedUiContra
     };
   }
 
-  for (const filePath of await findYamlFiles(dir)) {
+  for (const filePath of await findYamlFiles(dir, cwd)) {
     const file = relativePath(cwd, filePath);
     try {
       const sourceError = await repositoryPathError(cwd, filePath);

@@ -133,6 +133,33 @@ describe("validateRules", () => {
     expect(result.ok).toBe(false);
     expect(result.files[0]?.errors[0]).toEqual({ path: "(source)", message: ".logicgraph/rules/linked.yaml resolves outside repository" });
   });
+
+  it("scans symlinked rule directories inside the repository", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, ".logicgraph", "shared-rules"), { recursive: true });
+    await writeFile(
+      join(cwd, ".logicgraph", "shared-rules", "RULE-BILLING-001.yaml"),
+      "id: RULE-BILLING-001\ntitle: Paid customer may download invoice\ndomain: billing\ntype: decision\nstatus: active\nthen:\n  - action: allow\ncreatedAt: 2026-08-22\nupdatedAt: 2026-08-22\n",
+      "utf8",
+    );
+    await symlink(join(cwd, ".logicgraph", "shared-rules"), join(cwd, ".logicgraph", "rules", "group"));
+
+    const result = await validateRules({ cwd });
+
+    expect(result.ok).toBe(true);
+    expect(result.files[0]?.relativePath).toBe(".logicgraph/rules/group/RULE-BILLING-001.yaml");
+  });
+
+  it("rejects symlinked rule directories outside the repository", async () => {
+    const cwd = await project();
+    const outsideRules = await mkdtemp(join(tmpdir(), "logicgraph-rules-"));
+    await symlink(outsideRules, join(cwd, ".logicgraph", "rules", "group"));
+
+    const result = await validateRules({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.files[0]?.errors[0]).toEqual({ path: "(source)", message: ".logicgraph/rules/group resolves outside repository" });
+  });
 });
 
 async function project(): Promise<string> {

@@ -53,7 +53,7 @@ export async function validateRules(options: ValidateRulesOptions = {}): Promise
   }
 
   const files = await Promise.all(
-    (await findYamlFiles(rulesDir)).map((filePath) => validateRuleFile(cwd, filePath)),
+    (await findYamlFiles(rulesDir, cwd)).map((filePath) => validateRuleFile(cwd, filePath)),
   );
 
   const duplicateIds = findDuplicateRuleIds(files);

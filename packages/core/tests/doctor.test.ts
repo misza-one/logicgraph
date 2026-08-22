@@ -207,6 +207,17 @@ describe("runDoctor", () => {
     expect(result.ok).toBe(false);
     expect(result.checks.map((check) => check.message)).toContain(".logicgraph/ui-contracts/linked.yaml is invalid");
   });
+
+  it("reports symlinked UI contract directories outside the repository", async () => {
+    const cwd = await project();
+    const outsideDir = await mkdtemp(join(tmpdir(), "logicgraph-ui-"));
+    await symlink(outsideDir, join(cwd, ".logicgraph", "ui-contracts", "group"));
+
+    const result = await runDoctor({ cwd });
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((check) => check.message)).toContain(".logicgraph/ui-contracts/group is invalid");
+  });
 });
 
 async function project(): Promise<string> {
