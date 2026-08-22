@@ -100,7 +100,18 @@ describe("impact graph", () => {
 
     const result = await enrichImpactWithCodeGraph(impact, adapter({ impactError: new Error("impact exploded") }), { cwd });
 
-    expect(implementation(result)).toEqual({ status: "unavailable", reason: "CodeGraph query failed: impact exploded" });
+    expect(implementation(result)).toEqual({ status: "unavailable", reason: "CodeGraph impact failed: impact exploded" });
+  });
+
+  it("reports failed queries as query failures", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ queryError: new Error("query exploded") }), { cwd });
+
+    expect(implementation(result)).toEqual({ status: "unavailable", reason: "CodeGraph query failed: query exploded" });
   });
 
   it("does not resolve symbols from a different file when the referenced file has no match", async () => {
@@ -121,6 +132,18 @@ describe("impact graph", () => {
     await mkdir(join(cwd, "src"), { recursive: true });
     await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
     const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/../src/InvoiceService.ts#canDownload"] }], []);
+    const impact = getImpact(graph, "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter(), { cwd });
+
+    expect(implementation(result)?.status).toBe("resolved");
+  });
+
+  it("resolves references with an absolute path inside the repository", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const graph = buildRelationshipGraph([{ ...rule(), implementation: [join(cwd, "src", "InvoiceService.ts") + "#canDownload"] }], []);
     const impact = getImpact(graph, "RULE-BILLING-001");
 
     const result = await enrichImpactWithCodeGraph(impact, adapter(), { cwd });
@@ -168,13 +191,16 @@ function implementation(result: { nodes: { kind: string; codegraph?: import("../
   return result.nodes.find((node) => node.kind === "implementation")?.codegraph;
 }
 
-function adapter(options: { initialized?: boolean; symbols?: import("../src/index.js").CodeGraphSymbol[]; impactError?: Error } = {}): CodeGraphAdapter {
+function adapter(options: { initialized?: boolean; symbols?: import("../src/index.js").CodeGraphSymbol[]; impactError?: Error; queryError?: Error } = {}): CodeGraphAdapter {
   return {
     async status() {
       return { initialized: options.initialized ?? true };
     },
     async sync() {},
     async query() {
+      if (options.queryError) {
+        throw options.queryError;
+      }
       return (options.symbols ?? [{
         name: "canDownload",
         kind: "function",

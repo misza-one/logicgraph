@@ -132,12 +132,17 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   try {
     const matches = await adapter.query(parsed.symbol);
     const symbols = matches.map((match) => match.node);
-    const symbol = bestMatch(parsed, symbols);
+    const symbol = bestMatch(parsed, symbols, cwd);
     if (!symbol) {
       return { status: "unresolved", reason: "symbol not found" };
     }
     const query = symbol.qualifiedName ?? symbol.name;
-    const affected = await adapter.impact(query, depth);
+    let affected;
+    try {
+      affected = await adapter.impact(query, depth);
+    } catch (error) {
+      return { status: "unavailable", reason: `CodeGraph impact failed: ${errorMessage(error)}` };
+    }
     const ambiguous = symbols.some((candidate) => (candidate.id ?? candidate.name + candidate.filePath) !== (symbol.id ?? symbol.name + symbol.filePath) && (candidate.name === query || candidate.qualifiedName === query));
     return {
       status: "resolved",
@@ -150,9 +155,9 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
   }
 }
 
-function bestMatch(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[]): CodeGraphSymbol | undefined {
-  const filePath = normalizePath(reference.filePath);
-  return symbols.find((symbol) => normalizePath(symbol.filePath) === filePath && symbolMatches(symbol, reference.symbol));
+function bestMatch(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[], cwd: string): CodeGraphSymbol | undefined {
+  const filePath = normalizePath(reference.filePath, cwd);
+  return symbols.find((symbol) => normalizePath(symbol.filePath, cwd) === filePath && symbolMatches(symbol, reference.symbol));
 }
 
 function symbolMatches(symbol: CodeGraphSymbol, expected?: string): boolean {
@@ -164,11 +169,11 @@ function parseImplementationReference(reference: string): { filePath: string; sy
   return { filePath: filePath ?? "", symbol };
 }
 
-function normalizePath(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const relativePart = normalized.startsWith("/") ? normalized.slice(1) : normalized;
+function normalizePath(path: string, cwd: string): string {
+  const resolved = resolve(cwd, path);
+  const normalized = (resolved.replace(/\\/g, "/")).replace(`${resolve(cwd).replace(/\\/g, "/")}/`, "");
   const segments: string[] = [];
-  for (const segment of relativePart.split("/")) {
+  for (const segment of normalized.split("/")) {
     if (segment === "" || segment === ".") {
       continue;
     }
