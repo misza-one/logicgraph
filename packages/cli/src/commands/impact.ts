@@ -1,8 +1,8 @@
-import { getProjectImpact, type ImpactResult } from "@logicgraph/core";
+import { getProjectImpact, type CodeGraphSymbol, type ImpactResult } from "@logicgraph/core";
 
 export async function impactCommand(query: string): Promise<void> {
   try {
-    const result = await getProjectImpact(query);
+    const result = await getProjectImpact(query, { codegraph: true });
     console.log(formatImpact(result));
     if (!result.startNode) {
       process.exitCode = 1;
@@ -27,10 +27,37 @@ export function formatImpact(result: ImpactResult): string {
       continue;
     }
     lines.push(label(kind));
-    lines.push(...nodes.map((node) => `- ${node.label}${node.title ? `: ${node.title}` : ""}`), "");
+    for (const node of nodes) {
+      lines.push(...formatNode(node));
+    }
+    lines.push("");
   }
 
   return lines.join("\n").trimEnd();
+}
+
+function formatNode(node: ImpactResult["nodes"][number]): string[] {
+  const lines = [`- ${node.label}${node.title ? `: ${node.title}` : ""}`];
+  if (node.kind !== "implementation" || !node.codegraph) {
+    return lines;
+  }
+  if (node.codegraph.status !== "resolved") {
+    lines.push(`  ${node.codegraph.status}: ${node.codegraph.reason}`);
+    return lines;
+  }
+
+  const resolution = node.codegraph;
+  lines.push(`  resolved: ${formatSymbol(resolution.symbol)}`);
+  lines.push(`  location: ${resolution.symbol.filePath}:${resolution.symbol.startLine}`);
+  const affected = resolution.affected.filter((symbol) => symbol.name !== resolution.symbol.name);
+  if (affected.length > 0) {
+    lines.push(`  affected: ${affected.map((symbol) => `${symbol.name} (${symbol.filePath}:${symbol.startLine})`).join(", ")}`);
+  }
+  return lines;
+}
+
+function formatSymbol(symbol: CodeGraphSymbol): string {
+  return `${symbol.qualifiedName ?? symbol.name}${symbol.signature ? symbol.signature : ""}`;
 }
 
 function label(kind: "field" | "implementation" | "rule" | "test" | "ui-contract"): string {

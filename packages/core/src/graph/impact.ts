@@ -2,6 +2,7 @@ import type { BusinessRule, Condition } from "../rules/schema.js";
 import { validateProjectRules } from "../rules/validate.js";
 import { loadProjectUIContracts } from "../ui-contracts/load.js";
 import type { UIContract } from "../ui-contracts/schema.js";
+import { createCodeGraphCliAdapter, enrichImpactWithCodeGraph, type CodeGraphAdapter } from "./codegraph.js";
 
 export type ImpactNodeKind = "field" | "implementation" | "rule" | "test" | "ui-contract";
 
@@ -30,10 +31,11 @@ export interface ImpactResult {
   edges: ImpactEdge[];
 }
 
-export async function getProjectImpact(query: string, options: { cwd?: string } = {}): Promise<ImpactResult> {
+export async function getProjectImpact(query: string, options: { cwd?: string; codegraph?: boolean | CodeGraphAdapter; codegraphDepth?: number } = {}): Promise<ImpactResult> {
+  const cwd = options.cwd ?? process.cwd();
   const [rulesResult, uiContractsResult] = await Promise.all([
-    validateProjectRules(options),
-    loadProjectUIContracts(options),
+    validateProjectRules({ cwd }),
+    loadProjectUIContracts({ cwd }),
   ]);
 
   if (!rulesResult.ok) {
@@ -43,7 +45,16 @@ export async function getProjectImpact(query: string, options: { cwd?: string } 
     throw new Error("Cannot build impact graph until UI contracts validate.");
   }
 
-  return getImpact(buildRelationshipGraph(rulesResult.rules, uiContractsResult.contracts), query);
+  const impact = getImpact(buildRelationshipGraph(rulesResult.rules, uiContractsResult.contracts), query);
+  if (!options.codegraph || !impact.startNode) {
+    return impact;
+  }
+
+  return enrichImpactWithCodeGraph(
+    impact,
+    options.codegraph === true ? createCodeGraphCliAdapter(cwd) : options.codegraph,
+    { cwd, depth: options.codegraphDepth },
+  );
 }
 
 export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UIContract[]): RelationshipGraph {

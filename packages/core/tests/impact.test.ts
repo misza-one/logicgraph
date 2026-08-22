@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildRelationshipGraph, getImpact, getProjectImpact, type BusinessRule, type UIContract } from "../src/index.js";
+import { buildRelationshipGraph, enrichImpactWithCodeGraph, getImpact, getProjectImpact, type BusinessRule, type CodeGraphAdapter, type UIContract } from "../src/index.js";
 
 describe("impact graph", () => {
   it("connects fields, rules, UI contracts, implementation, and tests", () => {
@@ -48,6 +48,48 @@ describe("impact graph", () => {
     expect(impact.nodes.map((node) => node.id)).toContain("field:invoice.status");
     expect(impact.nodes.map((node) => node.id)).toContain("rule:RULE-BILLING-001");
   });
+
+  it("resolves implementation nodes through a CodeGraph adapter", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter(), { cwd });
+
+    const implementation = result.nodes.find((node) => node.kind === "implementation");
+    expect(result.codegraph).toEqual({ enabled: true, initialized: true, synced: true });
+    expect(implementation?.codegraph).toEqual({
+      status: "resolved",
+      symbol: {
+        name: "canDownload",
+        kind: "function",
+        filePath: "src/InvoiceService.ts",
+        startLine: 1,
+        qualifiedName: "canDownload",
+        signature: "(): boolean",
+      },
+      affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }],
+    });
+  });
+
+  it("marks missing implementation files as unresolved", async () => {
+    const cwd = await project();
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter(), { cwd });
+
+    expect(result.nodes.find((node) => node.kind === "implementation")?.codegraph).toEqual({ status: "unresolved", reason: "file missing" });
+  });
+
+  it("keeps impact usable when CodeGraph is unavailable", async () => {
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ initialized: false }), { cwd: await project() });
+
+    expect(result.nodes.find((node) => node.kind === "rule")?.label).toBe("RULE-BILLING-001");
+    expect(result.nodes.find((node) => node.kind === "implementation")?.codegraph).toEqual({ status: "unavailable", reason: "CodeGraph not initialized" });
+  });
 });
 
 function rule(): BusinessRule {
@@ -65,6 +107,31 @@ function rule(): BusinessRule {
     scenarios: [],
     createdAt: new Date("2026-08-22"),
     updatedAt: new Date("2026-08-22"),
+  };
+}
+
+function adapter(options: { initialized?: boolean } = {}): CodeGraphAdapter {
+  return {
+    async status() {
+      return { initialized: options.initialized ?? true };
+    },
+    async sync() {},
+    async query() {
+      return [{
+        node: {
+          name: "canDownload",
+          kind: "function",
+          filePath: "src/InvoiceService.ts",
+          startLine: 1,
+          qualifiedName: "canDownload",
+          signature: "(): boolean",
+        },
+        score: 1,
+      }];
+    },
+    async impact() {
+      return [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }];
+    },
   };
 }
 
