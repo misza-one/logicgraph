@@ -134,24 +134,19 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
     if (!symbol) {
       return { status: "unresolved", reason: "symbol not found" };
     }
-    return { status: "resolved", symbol, affected: await safeImpact(adapter, symbol.qualifiedName ?? symbol.name, depth) };
+    return {
+      status: "resolved",
+      symbol,
+      affected: await adapter.impact(symbol.qualifiedName ?? symbol.name, depth),
+    };
   } catch (error) {
-    return { status: "unavailable", reason: errorMessage(error) };
-  }
-}
-
-async function safeImpact(adapter: CodeGraphAdapter, symbol: string, depth: number): Promise<CodeGraphSymbol[]> {
-  try {
-    return await adapter.impact(symbol, depth);
-  } catch {
-    return [];
+    return { status: "unavailable", reason: `CodeGraph query failed: ${errorMessage(error)}` };
   }
 }
 
 function bestMatch(reference: { filePath: string; symbol?: string }, symbols: CodeGraphSymbol[]): CodeGraphSymbol | undefined {
   const filePath = normalizePath(reference.filePath);
-  return symbols.find((symbol) => normalizePath(symbol.filePath) === filePath && symbolMatches(symbol, reference.symbol))
-    ?? symbols.find((symbol) => symbolMatches(symbol, reference.symbol));
+  return symbols.find((symbol) => normalizePath(symbol.filePath) === filePath && symbolMatches(symbol, reference.symbol));
 }
 
 function symbolMatches(symbol: CodeGraphSymbol, expected?: string): boolean {

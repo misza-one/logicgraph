@@ -90,6 +90,30 @@ describe("impact graph", () => {
     expect(result.nodes.find((node) => node.kind === "rule")?.label).toBe("RULE-BILLING-001");
     expect(result.nodes.find((node) => node.kind === "implementation")?.codegraph).toEqual({ status: "unavailable", reason: "CodeGraph not initialized" });
   });
+
+  it("reports failed impact queries instead of an empty affected list", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ impactError: new Error("impact exploded") }), { cwd });
+
+    expect(implementation(result)).toEqual({ status: "unavailable", reason: "CodeGraph query failed: impact exploded" });
+  });
+
+  it("does not resolve symbols from a different file when the referenced file has no match", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ symbols: [
+      { name: "canDownload", kind: "function", filePath: "src/OtherService.ts", startLine: 3, qualifiedName: "OtherService.canDownload" },
+    ] }), { cwd });
+
+    expect(implementation(result)).toEqual({ status: "unresolved", reason: "symbol not found" });
+  });
 });
 
 function rule(): BusinessRule {
@@ -110,26 +134,30 @@ function rule(): BusinessRule {
   };
 }
 
-function adapter(options: { initialized?: boolean } = {}): CodeGraphAdapter {
+function implementation(result: { nodes: { kind: string; codegraph?: import("../src/index.js").CodeGraphImplementationResolution }[] }) {
+  return result.nodes.find((node) => node.kind === "implementation")?.codegraph;
+}
+
+function adapter(options: { initialized?: boolean; symbols?: import("../src/index.js").CodeGraphSymbol[]; impactError?: Error } = {}): CodeGraphAdapter {
   return {
     async status() {
       return { initialized: options.initialized ?? true };
     },
     async sync() {},
     async query() {
-      return [{
-        node: {
-          name: "canDownload",
-          kind: "function",
-          filePath: "src/InvoiceService.ts",
-          startLine: 1,
-          qualifiedName: "canDownload",
-          signature: "(): boolean",
-        },
-        score: 1,
-      }];
+      return (options.symbols ?? [{
+        name: "canDownload",
+        kind: "function",
+        filePath: "src/InvoiceService.ts",
+        startLine: 1,
+        qualifiedName: "canDownload",
+        signature: "(): boolean",
+      }]).map((node) => ({ node, score: 1 }));
     },
     async impact() {
+      if (options.impactError) {
+        throw options.impactError;
+      }
       return [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }];
     },
   };

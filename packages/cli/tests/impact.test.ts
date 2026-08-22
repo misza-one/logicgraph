@@ -11,6 +11,42 @@ describe("formatImpact", () => {
     expect(formatImpact(result())).toContain("Tests\n- tests/invoice.test.ts");
   });
 
+  it("keeps same-named affected symbols from other files", () => {
+    const sameName = result();
+    sameName.nodes = [
+      {
+        id: "implementation:src/InvoiceService.ts#validate",
+        kind: "implementation",
+        label: "src/InvoiceService.ts#validate",
+        codegraph: {
+          status: "resolved",
+          symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "Service.validate" },
+          affected: [{ name: "validate", kind: "function", filePath: "src/Controller.ts", startLine: 9, qualifiedName: "Controller.validate" }],
+        },
+      },
+    ];
+
+    expect(formatImpact(sameName)).toContain("affected: validate (src/Controller.ts:9)");
+  });
+
+  it("excludes the resolved symbol itself from affected output", () => {
+    const selfOnly = result();
+    selfOnly.nodes = [
+      {
+        id: "implementation:src/InvoiceService.ts#canDownload",
+        kind: "implementation",
+        label: "src/InvoiceService.ts#canDownload",
+        codegraph: {
+          status: "resolved",
+          symbol: { name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "canDownload" },
+          affected: [{ name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "canDownload" }],
+        },
+      },
+    ];
+
+    expect(formatImpact(selfOnly)).not.toContain("affected:");
+  });
+
   it("prints a miss", () => {
     expect(formatImpact({ query: "missing", nodes: [], edges: [] })).toContain("No matching field, rule, or UI contract found.");
   });
@@ -31,7 +67,7 @@ function result(): ImpactResult {
         codegraph: {
           status: "resolved",
           symbol: { name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, signature: "(): boolean" },
-          affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }],
+          affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5, qualifiedName: "downloadInvoice" }],
         },
       },
       { id: "test:tests/invoice.test.ts", kind: "test", label: "tests/invoice.test.ts" },
