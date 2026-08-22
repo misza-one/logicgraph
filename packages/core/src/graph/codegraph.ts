@@ -207,7 +207,7 @@ function normalizePath(path: string, cwd: string): string {
       segments.pop();
       continue;
     }
-    segments.push(segment);
+    segments.push(process.platform === "win32" ? segment.toLowerCase() : segment);
   }
   return segments.join("/");
 }
