@@ -1,0 +1,22 @@
+{
+  "name": "@logicgraph/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "logicgraph": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@logicgraph/core": "workspace:*",
+    "commander": "^14.0.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
