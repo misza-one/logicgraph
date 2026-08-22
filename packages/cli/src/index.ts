@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { doctorCommand } from "./commands/doctor.js";
+import { impactCommand } from "./commands/impact.js";
 import { initLogicGraph } from "./commands/init.js";
 import { validateRulesCommand } from "./commands/rules-validate.js";
 
@@ -31,6 +32,12 @@ rules
   .command("validate")
   .description("Validate LogicGraph rule YAML files")
   .action(validateRulesCommand);
+
+program
+  .command("impact")
+  .description("Show impacted LogicGraph rules, fields, UI contracts, implementation, and tests")
+  .argument("<query>", "field, rule ID, or UI contract ID")
+  .action(impactCommand);
 
 program
   .command("doctor")
