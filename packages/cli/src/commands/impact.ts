@@ -50,8 +50,9 @@ function formatNode(node: ImpactResult["nodes"][number]): string[] {
   lines.push(`  resolved: ${formatSymbol(resolution.symbol)}`);
   lines.push(`  location: ${resolution.symbol.filePath}:${resolution.symbol.startLine}`);
   const affected = resolution.affected.filter((symbol) =>
-    !(symbol.qualifiedName !== undefined && symbol.qualifiedName === resolution.symbol.qualifiedName) &&
-    !(symbol.filePath === resolution.symbol.filePath && symbol.startLine === resolution.symbol.startLine));
+    !((symbol.qualifiedName === resolution.symbol.qualifiedName || symbol.name === resolution.symbol.name) &&
+      symbol.filePath === resolution.symbol.filePath &&
+      symbol.startLine === resolution.symbol.startLine));
   if (affected.length > 0) {
     lines.push(`  affected: ${affected.map((symbol) => `${symbol.name} (${symbol.filePath}:${symbol.startLine})`).join(", ")}`);
   }
