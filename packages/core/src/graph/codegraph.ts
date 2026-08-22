@@ -73,13 +73,23 @@ export async function enrichImpactWithCodeGraph(
   options: { cwd?: string; depth?: number } = {},
 ): Promise<ImpactResult> {
   const implementationNodes = impact.nodes.filter((node) => node.kind === "implementation");
-  if (implementationNodes.length === 0) {
-    return { ...impact, codegraph: { enabled: true, initialized: true, synced: false } };
-  }
 
   const cwd = options.cwd ?? process.cwd();
   const depth = options.depth ?? 2;
-  const status = await adapter.status();
+  let status: CodeGraphStatus;
+  try {
+    status = await adapter.status();
+  } catch (error) {
+    status = { initialized: false, reason: errorMessage(error) };
+  }
+  if (implementationNodes.length === 0) {
+    return {
+      ...impact,
+      codegraph: status.initialized
+        ? { enabled: true, initialized: true, synced: false }
+        : { enabled: true, initialized: false, synced: false, reason: status.reason ?? "CodeGraph not initialized" },
+    };
+  }
   if (!status.initialized) {
     return withImplementationResolution(impact, { status: "unavailable", reason: status.reason ?? "CodeGraph not initialized" }, false, false);
   }

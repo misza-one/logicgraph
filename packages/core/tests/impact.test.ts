@@ -151,6 +151,25 @@ describe("impact graph", () => {
     expect(implementation(result)?.status).toBe("resolved");
   });
 
+  it("reports an unavailable status when adapter status rejects", async () => {
+    const impact = getImpact(buildRelationshipGraph([rule()], []), "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ statusError: new Error("status exploded") }), { cwd: await project() });
+
+    expect(result.codegraph).toEqual({ enabled: true, initialized: false, synced: false, reason: "status exploded" });
+    expect(implementation(result)).toEqual({ status: "unavailable", reason: "status exploded" });
+  });
+
+  it("reports the true status for graphs without implementation references", async () => {
+    const empty = getImpact(buildRelationshipGraph([], []), "missing");
+
+    const uninitialized = await enrichImpactWithCodeGraph(empty, adapter({ initialized: false }), { cwd: await project() });
+    expect(uninitialized.codegraph).toEqual({ enabled: true, initialized: false, synced: false, reason: "CodeGraph not initialized" });
+
+    const initialized = await enrichImpactWithCodeGraph(empty, adapter(), { cwd: await project() });
+    expect(initialized.codegraph).toEqual({ enabled: true, initialized: true, synced: false });
+  });
+
   it("rejects references that match several members in the same file", async () => {
     const cwd = await project();
     await mkdir(join(cwd, "src"), { recursive: true });
@@ -209,9 +228,12 @@ function implementation(result: { nodes: { kind: string; codegraph?: import("../
   return result.nodes.find((node) => node.kind === "implementation")?.codegraph;
 }
 
-function adapter(options: { initialized?: boolean; symbols?: import("../src/index.js").CodeGraphSymbol[]; impactError?: Error; queryError?: Error } = {}): CodeGraphAdapter {
+function adapter(options: { initialized?: boolean; symbols?: import("../src/index.js").CodeGraphSymbol[]; impactError?: Error; queryError?: Error; statusError?: Error } = {}): CodeGraphAdapter {
   return {
     async status() {
+      if (options.statusError) {
+        throw options.statusError;
+      }
       return { initialized: options.initialized ?? true };
     },
     async sync() {},
