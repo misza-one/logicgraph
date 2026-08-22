@@ -1,12 +1,16 @@
 import { z } from "zod";
+import { scenarioSchema } from "../behavior/scenario.js";
 
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const referencePathSchema = z.string().min(1);
 
-export const comparisonConditionSchema = z.object({
-  field: z.string().min(1),
-  operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "exists"]),
-  value: z.union([scalar, z.array(scalar)]).optional(),
-});
+export const comparisonConditionSchema = z
+  .object({
+    field: z.string().min(1),
+    operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "exists"]),
+    value: z.union([scalar, z.array(scalar)]).optional(),
+  })
+  .strict();
 
 export type Condition =
   | z.infer<typeof comparisonConditionSchema>
@@ -15,13 +19,71 @@ export type Condition =
   | { not: Condition };
 
 export const conditionSchema: z.ZodType<Condition> = z.lazy(() =>
-  z.union([
-    comparisonConditionSchema,
-    z.object({ all: z.array(conditionSchema).min(1) }),
-    z.object({ any: z.array(conditionSchema).min(1) }),
-    z.object({ not: conditionSchema }),
-  ]),
+  z
+    .unknown()
+    .superRefine((input, context) => validateCondition(input, context))
+    .transform((input) => input as Condition),
 );
+
+function validateCondition(input: unknown, context: z.RefinementCtx): void {
+  if (!isRecord(input)) {
+    context.addIssue({ code: "custom", message: "Expected condition object." });
+    return;
+  }
+
+  if ("all" in input) {
+    validateOnlyConditionKey(input, "all", context);
+    validateConditionList(input.all, "all", context);
+    return;
+  }
+  if ("any" in input) {
+    validateOnlyConditionKey(input, "any", context);
+    validateConditionList(input.any, "any", context);
+    return;
+  }
+  if ("not" in input) {
+    validateOnlyConditionKey(input, "not", context);
+    addNestedIssues(conditionSchema.safeParse(input.not), ["not"], context);
+    return;
+  }
+
+  addNestedIssues(comparisonConditionSchema.safeParse(input), [], context);
+}
+
+function validateConditionList(input: unknown, key: "all" | "any", context: z.RefinementCtx): void {
+  if (!Array.isArray(input)) {
+    context.addIssue({ code: "custom", path: [key], message: "Expected condition array." });
+    return;
+  }
+  if (input.length === 0) {
+    context.addIssue({ code: "custom", path: [key], message: "Expected at least one condition." });
+    return;
+  }
+
+  input.forEach((item, index) => addNestedIssues(conditionSchema.safeParse(item), [key, index], context));
+}
+
+function validateOnlyConditionKey(input: Record<string, unknown>, key: "all" | "any" | "not", context: z.RefinementCtx): void {
+  for (const name of Object.keys(input)) {
+    if (name !== key) {
+      context.addIssue({ code: "custom", path: [name], message: "Unknown condition key." });
+    }
+  }
+}
+
+function addNestedIssues(result: { success: true } | { success: false; error: z.ZodError }, path: PropertyKey[], context: z.RefinementCtx): void {
+  if (result.success) {
+    return;
+  }
+
+  for (const issue of result.error.issues) {
+    context.addIssue({ ...issue, path: [...path, ...issue.path] });
+  }
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
 
 export const actionSchema = z.object({
   action: z.enum(["set", "emit", "allow", "deny", "calculate", "transition"]),
@@ -40,9 +102,10 @@ export const businessRuleSchema = z.object({
   when: conditionSchema.optional(),
   then: z.array(actionSchema).min(1),
   rationale: z.string().optional(),
-  implementation: z.array(z.string()).default([]),
-  tests: z.array(z.string()).default([]),
-  uiContracts: z.array(z.string()).default([]),
+  implementation: z.array(referencePathSchema).default([]),
+  tests: z.array(referencePathSchema).default([]),
+  uiContracts: z.array(z.string().regex(/^UI-[A-Z0-9-]+$/)).default([]),
+  scenarios: z.array(scenarioSchema).default([]),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

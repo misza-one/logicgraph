@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { doctorCommand } from "./commands/doctor.js";
 import { initLogicGraph } from "./commands/init.js";
+import { validateRulesCommand } from "./commands/rules-validate.js";
 
 const program = new Command();
 
@@ -22,5 +24,17 @@ program
       process.exitCode = 1;
     }
   });
+
+const rules = program.command("rules").description("Work with LogicGraph rules");
+
+rules
+  .command("validate")
+  .description("Validate LogicGraph rule YAML files")
+  .action(validateRulesCommand);
+
+program
+  .command("doctor")
+  .description("Inspect LogicGraph project health")
+  .action(doctorCommand);
 
 await program.parseAsync(process.argv);
