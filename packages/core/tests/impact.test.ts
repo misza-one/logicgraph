@@ -194,15 +194,37 @@ describe("impact graph", () => {
     await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function validate() { return true; }", "utf8");
     const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/InvoiceService.ts#validate"] }], []);
     const impact = getImpact(graph, "RULE-BILLING-001");
-    const resolution = await enrichImpactWithCodeGraph(impact, adapter({ symbols: [
-      { id: "function:1", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
-      { id: "function:2", name: "validate", kind: "function", filePath: "src/OtherService.ts", startLine: 9, qualifiedName: "validate" },
-    ] }), { cwd });
+    const resolution = await enrichImpactWithCodeGraph(impact, adapter({
+      symbols: [
+        { id: "function:1", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
+        { id: "function:2", name: "validate", kind: "function", filePath: "src/OtherService.ts", startLine: 9, qualifiedName: "validate" },
+      ],
+      impactError: new Error("impact exploded"),
+    }), { cwd });
 
     const codegraph = implementation(resolution) as { status: "resolved"; affected: unknown; reason: string };
     expect(codegraph.status).toBe("resolved");
     expect(codegraph.affected).toBeNull();
     expect(codegraph.reason).toContain("ambiguous");
+  });
+
+  it("prefers an exact qualified-name match over a suffix match", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "class A { validate() {} }", "utf8");
+    const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/InvoiceService.ts#A.validate"] }], []);
+    const impact = getImpact(graph, "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter({ symbols: [
+      { id: "function:1", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "A.validate" },
+      { id: "function:2", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 2, qualifiedName: "Namespace.A.validate" },
+    ] }), { cwd });
+
+    expect(implementation(result)).toMatchObject({
+      status: "resolved",
+      symbol: { qualifiedName: "A.validate" },
+      affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }],
+    });
   });
 });
 

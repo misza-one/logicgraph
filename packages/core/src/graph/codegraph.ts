@@ -152,19 +152,22 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
     }
     const symbol = candidates[0];
     const query = symbol.qualifiedName ?? symbol.name;
+    const ambiguous = symbols.some((candidate) => (candidate.id ?? candidate.name + candidate.filePath) !== (symbol.id ?? symbol.name + symbol.filePath) && (candidate.name === query || candidate.qualifiedName === query));
+    if (ambiguous) {
+      return {
+        status: "resolved",
+        symbol,
+        affected: null,
+        reason: `impact lookup for "${query}" is ambiguous; multiple symbols share this name`,
+      };
+    }
     let affected;
     try {
       affected = await adapter.impact(query, depth);
     } catch (error) {
       return { status: "unavailable", reason: `CodeGraph impact failed: ${errorMessage(error)}` };
     }
-    const ambiguous = symbols.some((candidate) => (candidate.id ?? candidate.name + candidate.filePath) !== (symbol.id ?? symbol.name + symbol.filePath) && (candidate.name === query || candidate.qualifiedName === query));
-    return {
-      status: "resolved",
-      symbol,
-      affected: ambiguous ? null : affected,
-      ...(ambiguous ? { reason: `impact lookup for "${query}" is ambiguous; multiple symbols share this name` } : {}),
-    };
+    return { status: "resolved", symbol, affected };
   } catch (error) {
     return { status: "unavailable", reason: `CodeGraph query failed: ${errorMessage(error)}` };
   }
@@ -176,7 +179,15 @@ function matchingSymbols(reference: { filePath: string; symbol?: string }, symbo
 }
 
 function symbolMatches(symbol: CodeGraphSymbol, expected?: string): boolean {
-  return Boolean(expected && (symbol.name === expected || symbol.qualifiedName === expected || symbol.qualifiedName?.endsWith(`.${expected}`)));
+  if (!expected) {
+    return false;
+  }
+  if (symbol.name === expected || symbol.qualifiedName === expected) {
+    return true;
+  }
+  // Suffix matching is only for unqualified references; a qualified
+  // reference like "A.validate" must match exactly, not "Namespace.A.validate".
+  return !expected.includes(".") && symbol.qualifiedName?.endsWith(`.${expected}`) === true;
 }
 
 function parseImplementationReference(reference: string): { filePath: string; symbol?: string } {
