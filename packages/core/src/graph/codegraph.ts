@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileExists, repositoryPathError } from "../yaml.js";
 import type { ImpactResult } from "./impact.js";
@@ -196,10 +196,11 @@ function parseImplementationReference(reference: string): { filePath: string; sy
 }
 
 function normalizePath(path: string, cwd: string): string {
-  const resolved = resolve(cwd, path);
-  const normalized = (resolved.replace(/\\/g, "/")).replace(`${resolve(cwd).replace(/\\/g, "/")}/`, "");
+  // relative() applies platform path semantics (Windows drive/root casing),
+  // so the result is repository-relative before any case folding.
+  const rel = relative(resolve(cwd), resolve(cwd, path)).replace(/\\/g, "/");
   const segments: string[] = [];
-  for (const segment of normalized.split("/")) {
+  for (const segment of rel.split("/")) {
     if (segment === "" || segment === ".") {
       continue;
     }
