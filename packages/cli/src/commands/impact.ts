@@ -49,6 +49,10 @@ function formatNode(node: ImpactResult["nodes"][number]): string[] {
   const resolution = node.codegraph;
   lines.push(`  resolved: ${formatSymbol(resolution.symbol)}`);
   lines.push(`  location: ${resolution.symbol.filePath}:${resolution.symbol.startLine}`);
+  if (resolution.affected === null) {
+    lines.push(`  ${resolution.reason ?? "affected unavailable"}`);
+    return lines;
+  }
   const affected = resolution.affected.filter((symbol) =>
     !((symbol.qualifiedName === resolution.symbol.qualifiedName || symbol.name === resolution.symbol.name) &&
       symbol.filePath === resolution.symbol.filePath &&

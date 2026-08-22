@@ -12,6 +12,7 @@ export interface CodeGraphStatus {
 }
 
 export interface CodeGraphSymbol {
+  id?: string;
   name: string;
   kind: string;
   filePath: string;
@@ -40,7 +41,7 @@ export interface ImpactCodeGraphStatus {
 }
 
 export type CodeGraphImplementationResolution =
-  | { status: "resolved"; symbol: CodeGraphSymbol; affected: CodeGraphSymbol[] }
+  | { status: "resolved"; symbol: CodeGraphSymbol; affected: CodeGraphSymbol[] | null; reason?: string }
   | { status: "unresolved" | "unavailable"; reason: string };
 
 export function createCodeGraphCliAdapter(cwd: string): CodeGraphAdapter {
@@ -130,14 +131,19 @@ async function resolveImplementation(reference: string, cwd: string, adapter: Co
 
   try {
     const matches = await adapter.query(parsed.symbol);
-    const symbol = bestMatch(parsed, matches.map((match) => match.node));
+    const symbols = matches.map((match) => match.node);
+    const symbol = bestMatch(parsed, symbols);
     if (!symbol) {
       return { status: "unresolved", reason: "symbol not found" };
     }
+    const query = symbol.qualifiedName ?? symbol.name;
+    const affected = await adapter.impact(query, depth);
+    const ambiguous = symbols.some((candidate) => (candidate.id ?? candidate.name + candidate.filePath) !== (symbol.id ?? symbol.name + symbol.filePath) && (candidate.name === query || candidate.qualifiedName === query));
     return {
       status: "resolved",
       symbol,
-      affected: await adapter.impact(symbol.qualifiedName ?? symbol.name, depth),
+      affected: ambiguous ? null : affected,
+      ...(ambiguous ? { reason: `impact lookup for "${query}" is ambiguous; multiple symbols share this name` } : {}),
     };
   } catch (error) {
     return { status: "unavailable", reason: `CodeGraph query failed: ${errorMessage(error)}` };
@@ -159,7 +165,20 @@ function parseImplementationReference(reference: string): { filePath: string; sy
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/^\.\//, "");
+  const normalized = path.replace(/\\/g, "/");
+  const relativePart = normalized.startsWith("/") ? normalized.slice(1) : normalized;
+  const segments: string[] = [];
+  for (const segment of relativePart.split("/")) {
+    if (segment === "" || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join("/");
 }
 
 async function codegraphJson<T>(args: string[], cwd: string): Promise<T> {

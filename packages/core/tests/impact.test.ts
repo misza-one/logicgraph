@@ -59,7 +59,7 @@ describe("impact graph", () => {
 
     const implementation = result.nodes.find((node) => node.kind === "implementation");
     expect(result.codegraph).toEqual({ enabled: true, initialized: true, synced: true });
-    expect(implementation?.codegraph).toEqual({
+    expect(implementation?.codegraph).toMatchObject({
       status: "resolved",
       symbol: {
         name: "canDownload",
@@ -71,6 +71,7 @@ describe("impact graph", () => {
       },
       affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5 }],
     });
+    expect((implementation?.codegraph as { reason?: string }).reason).toBeUndefined();
   });
 
   it("marks missing implementation files as unresolved", async () => {
@@ -113,6 +114,35 @@ describe("impact graph", () => {
     ] }), { cwd });
 
     expect(implementation(result)).toEqual({ status: "unresolved", reason: "symbol not found" });
+  });
+
+  it("resolves references with dot segments in the path", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function canDownload() { return true; }", "utf8");
+    const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/../src/InvoiceService.ts#canDownload"] }], []);
+    const impact = getImpact(graph, "RULE-BILLING-001");
+
+    const result = await enrichImpactWithCodeGraph(impact, adapter(), { cwd });
+
+    expect(implementation(result)?.status).toBe("resolved");
+  });
+
+  it("leaves affected null when the impact query name is ambiguous", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src", "InvoiceService.ts"), "export function validate() { return true; }", "utf8");
+    const graph = buildRelationshipGraph([{ ...rule(), implementation: ["src/InvoiceService.ts#validate"] }], []);
+    const impact = getImpact(graph, "RULE-BILLING-001");
+    const resolution = await enrichImpactWithCodeGraph(impact, adapter({ symbols: [
+      { id: "function:1", name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
+      { id: "function:2", name: "validate", kind: "function", filePath: "src/OtherService.ts", startLine: 9, qualifiedName: "validate" },
+    ] }), { cwd });
+
+    const codegraph = implementation(resolution) as { status: "resolved"; affected: unknown; reason: string };
+    expect(codegraph.status).toBe("resolved");
+    expect(codegraph.affected).toBeNull();
+    expect(codegraph.reason).toContain("ambiguous");
   });
 });
 

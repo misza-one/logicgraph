@@ -83,6 +83,26 @@ describe("formatImpact", () => {
     expect(formatImpact(bare)).toContain("affected: validate (src/Controller.ts:9)");
   });
 
+  it("prints the reason when affected is unavailable", () => {
+    const unavailable = result();
+    unavailable.nodes = [
+      {
+        id: "implementation:src/InvoiceService.ts#validate",
+        kind: "implementation",
+        label: "src/InvoiceService.ts#validate",
+        codegraph: {
+          status: "resolved",
+          symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
+          affected: null,
+          reason: 'impact lookup for "validate" is ambiguous; multiple symbols share this name',
+        },
+      },
+    ];
+
+    expect(formatImpact(unavailable)).toContain('impact lookup for "validate" is ambiguous; multiple symbols share this name');
+    expect(formatImpact(unavailable)).not.toContain("affected:");
+  });
+
   it("prints a miss", () => {
     expect(formatImpact({ query: "missing", nodes: [], edges: [] })).toContain("No matching field, rule, or UI contract found.");
   });
