@@ -201,7 +201,13 @@ function normalizePathFallback(rel: string): string {
       continue;
     }
     if (segment === "..") {
-      segments.pop();
+      if (segments.length > 0) {
+        segments.pop();
+      } else {
+        // Preserve leading parent segments so paths outside the repository
+        // cannot collapse into an in-repository suffix and match the wrong file.
+        segments.push("..");
+      }
       continue;
     }
     segments.push(segment);
