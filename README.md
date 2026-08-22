@@ -15,15 +15,19 @@ The source of truth is human-readable YAML stored in Git. Code intelligence, gra
 
 ## Current milestone
 
-The first milestone intentionally contains only the foundation:
+The current milestone intentionally keeps the foundation small:
 
 - TypeScript + pnpm monorepo
 - `@logicgraph/core`
 - structured `BusinessRule` schema with Zod
+- structured `UIContract` schema with Zod
 - nested `all`, `any`, and `not` conditions
 - `@logicgraph/cli`
 - `logicgraph init`
-- initial unit tests
+- `logicgraph rules validate`
+- `logicgraph doctor`
+- `logicgraph impact <field|rule|ui-contract>`
+- unit tests
 
 ## Development
 
@@ -69,6 +73,14 @@ Check project health:
 node packages/cli/dist/src/index.js doctor
 ```
 
+Show everything connected to a field, rule, or UI contract:
+
+```bash
+node packages/cli/dist/src/index.js impact invoice.downloadAllowed
+node packages/cli/dist/src/index.js impact RULE-BILLING-001
+node packages/cli/dist/src/index.js impact UI-INVOICE-001
+```
+
 ## Example business rule
 
 ```yaml
@@ -105,14 +117,40 @@ createdAt: 2026-08-22
 updatedAt: 2026-08-22
 ```
 
+## Example UI contract
+
+```yaml
+id: UI-INVOICE-001
+title: Download invoice button
+status: active
+page: InvoiceDetails
+
+element:
+  id: download_invoice_button
+  role: button
+  label: Download invoice
+
+trigger:
+  event: click
+
+requires:
+  - RULE-BILLING-001
+
+implementation:
+  - src/billing/InvoiceDetails.tsx#DownloadInvoiceButton
+
+tests:
+  - tests/billing/invoice-download.spec.ts
+```
+
+The impact graph links rules, UI contracts, fields, implementation references, and tests in memory. It is intentionally local and ephemeral; persistence and external graph adapters come later.
+
 ## Planned next steps
 
-1. in-memory relationship graph
-2. `logicgraph impact <field|rule|ui-contract>`
-3. CodeGraph adapter
-4. UI/Playwright verification
-5. MCP server
-6. LLM-assisted rule discovery
+1. CodeGraph adapter
+2. UI/Playwright verification
+3. MCP server
+4. LLM-assisted rule discovery
 
 ## Architectural principle
 
