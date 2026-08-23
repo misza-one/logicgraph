@@ -2,6 +2,9 @@ import type { BusinessRule, Condition } from "../rules/schema.js";
 import { validateProjectRules } from "../rules/validate.js";
 import { loadProjectUIContracts } from "../ui-contracts/load.js";
 import type { UIContract } from "../ui-contracts/schema.js";
+import { createCodeGraphCliAdapter } from "./codegraph.js";
+import type { CodeIntelResultStatus, CodeIntelligenceProvider, ImplementationResolution } from "./code-intelligence.js";
+import { enrichWithCodeIntelligence } from "./code-intelligence.js";
 
 export type ImpactNodeKind = "field" | "implementation" | "rule" | "test" | "ui-contract";
 
@@ -10,6 +13,9 @@ export interface ImpactNode {
   kind: ImpactNodeKind;
   label: string;
   title?: string;
+  // Technical enrichment, present only when a code intelligence provider ran.
+  // Distinct from semantic graph knowledge; never merges into edges above.
+  codeIntel?: ImplementationResolution;
 }
 
 export interface ImpactEdge {
@@ -28,12 +34,23 @@ export interface ImpactResult {
   startNode?: ImpactNode;
   nodes: ImpactNode[];
   edges: ImpactEdge[];
+  codeIntel?: CodeIntelResultStatus;
 }
 
-export async function getProjectImpact(query: string, options: { cwd?: string } = {}): Promise<ImpactResult> {
+export interface ProjectImpactOptions {
+  cwd?: string;
+  // Semantic traversal depth (propagation hops). Unlimited by default;
+  // direction and edge semantics already bound the traversal.
+  depth?: number;
+  codeIntelligence?: boolean | CodeIntelligenceProvider;
+  codeIntelligenceDepth?: number;
+}
+
+export async function getProjectImpact(query: string, options: ProjectImpactOptions = {}): Promise<ImpactResult> {
+  const cwd = options.cwd ?? process.cwd();
   const [rulesResult, uiContractsResult] = await Promise.all([
-    validateProjectRules(options),
-    loadProjectUIContracts(options),
+    validateProjectRules({ cwd }),
+    loadProjectUIContracts({ cwd }),
   ]);
 
   if (!rulesResult.ok) {
@@ -43,7 +60,16 @@ export async function getProjectImpact(query: string, options: { cwd?: string } 
     throw new Error("Cannot build impact graph until UI contracts validate.");
   }
 
-  return getImpact(buildRelationshipGraph(rulesResult.rules, uiContractsResult.contracts), query);
+  const impact = getImpact(buildRelationshipGraph(rulesResult.rules, uiContractsResult.contracts), query, { depth: options.depth });
+  if (!options.codeIntelligence || !impact.startNode) {
+    return impact;
+  }
+
+  return enrichWithCodeIntelligence(
+    impact,
+    options.codeIntelligence === true ? createCodeGraphCliAdapter(cwd) : options.codeIntelligence,
+    { cwd, depth: options.codeIntelligenceDepth },
+  );
 }
 
 export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UIContract[]): RelationshipGraph {
@@ -110,35 +136,70 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
   return { nodes: [...nodes.values()], edges: [...edges.values()] };
 }
 
-export function getImpact(graph: RelationshipGraph, query: string): ImpactResult {
+// Directional impact: "if this changes, what downstream behavior may be
+// affected?" Only dependency/causality edges propagate:
+//   field --uses--> rule            (rules reading the field)
+//   rule --acts-on--> field         (fields the rule writes feed other rules)
+//   rule --ui--> ui-contract        (contracts requiring the rule)
+//   ui-contract --requires--> rule  (same flow, declared from the other side)
+// Evidence edges (implements, tests) are included in the result but never
+// propagate further, so shared tests or implementations do not connect
+// sibling rules. Broad undirected exploration belongs to a future
+// `related` command, not to impact.
+export function getImpact(graph: RelationshipGraph, query: string, options: { depth?: number } = {}): ImpactResult {
   const startNode = graph.nodes.find((node) => node.label === query && node.kind === "rule") ?? graph.nodes.find((node) => node.label === query && node.kind === "ui-contract") ?? graph.nodes.find((node) => node.label === query && node.kind === "field");
   if (!startNode) {
     return { query, nodes: [], edges: [] };
   }
 
-  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
-  const adjacency = new Map<string, string[]>();
+  const propagate = new Map<string, string[]>();
+  const evidence = new Map<string, string[]>();
+  const follow = (map: Map<string, string[]>, from: string, to: string): void => {
+    const existing = map.get(from);
+    if (!existing?.includes(to)) {
+      map.set(from, [...(existing ?? []), to]);
+    }
+  };
   for (const edge of graph.edges) {
-    adjacency.set(edge.from, [...(adjacency.get(edge.from) ?? []), edge.to]);
-    adjacency.set(edge.to, [...(adjacency.get(edge.to) ?? []), edge.from]);
+    switch (edge.kind) {
+      case "uses":
+      case "acts-on":
+      case "ui":
+        follow(propagate, edge.from, edge.to);
+        break;
+      case "requires":
+        follow(propagate, edge.to, edge.from);
+        break;
+      case "implements":
+      case "tests":
+        follow(evidence, edge.from, edge.to);
+        break;
+    }
   }
 
   const visited = new Set([startNode.id]);
-  const queue = [startNode.id];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) {
-      continue;
-    }
-    for (const next of adjacency.get(current) ?? []) {
-      if (visited.has(next)) {
-        continue;
+  let frontier = [startNode.id];
+  let remaining = options.depth ?? Infinity;
+  while (frontier.length > 0 && remaining > 0) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const to of propagate.get(id) ?? []) {
+        if (!visited.has(to)) {
+          visited.add(to);
+          next.push(to);
+        }
       }
-      visited.add(next);
-      queue.push(next);
+    }
+    frontier = next;
+    remaining--;
+  }
+  for (const id of visited) {
+    for (const to of evidence.get(id) ?? []) {
+      visited.add(to);
     }
   }
 
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   return {
     query,
     startNode,

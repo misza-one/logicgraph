@@ -37,6 +37,7 @@ program
   .command("impact")
   .description("Show impacted LogicGraph rules, fields, UI contracts, implementation, and tests")
   .argument("<query>", "field, rule ID, or UI contract ID")
+  .option("--code", "enrich technical impact via the CodeGraph CLI (semantic impact never depends on it)")
   .action(impactCommand);
 
 program
