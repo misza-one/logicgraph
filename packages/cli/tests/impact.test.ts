@@ -7,7 +7,7 @@ describe("formatImpact", () => {
     expect(formatImpact(result())).toContain("Rules\n- RULE-BILLING-001: Paid customer may download invoice");
     expect(formatImpact(result())).toContain("UI contracts\n- UI-INVOICE-001: Download invoice button");
     expect(formatImpact(result())).toContain("resolved: canDownload(): boolean\n  location: src/InvoiceService.ts:1");
-    expect(formatImpact(result())).toContain("affected: downloadInvoice (src/Controller.ts:5)");
+    expect(formatImpact(result())).toContain("technical impact:\n  - downloadInvoice (src/Controller.ts:5)");
     expect(formatImpact(result())).toContain("Tests\n- tests/invoice.test.ts");
   });
 
@@ -18,7 +18,7 @@ describe("formatImpact", () => {
         id: "implementation:src/InvoiceService.ts#validate",
         kind: "implementation",
         label: "src/InvoiceService.ts#validate",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "Service.validate" },
           affected: [{ name: "validate", kind: "function", filePath: "src/Controller.ts", startLine: 9, qualifiedName: "Controller.validate" }],
@@ -26,7 +26,7 @@ describe("formatImpact", () => {
       },
     ];
 
-    expect(formatImpact(sameName)).toContain("affected: validate (src/Controller.ts:9)");
+    expect(formatImpact(sameName)).toContain("- validate (src/Controller.ts:9)");
   });
 
   it("excludes the resolved symbol itself from affected output", () => {
@@ -36,7 +36,7 @@ describe("formatImpact", () => {
         id: "implementation:src/InvoiceService.ts#canDownload",
         kind: "implementation",
         label: "src/InvoiceService.ts#canDownload",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "canDownload" },
           affected: [{ name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "canDownload" }],
@@ -44,7 +44,7 @@ describe("formatImpact", () => {
       },
     ];
 
-    expect(formatImpact(selfOnly)).not.toContain("affected:");
+    expect(formatImpact(selfOnly)).not.toContain("technical impact:");
   });
 
   it("keeps affected symbols when qualified names are absent", () => {
@@ -54,7 +54,7 @@ describe("formatImpact", () => {
         id: "implementation:src/InvoiceService.ts#validate",
         kind: "implementation",
         label: "src/InvoiceService.ts#validate",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1 },
           affected: [{ name: "validate", kind: "function", filePath: "src/Controller.ts", startLine: 9 }],
@@ -62,7 +62,7 @@ describe("formatImpact", () => {
       },
     ];
 
-    expect(formatImpact(noQualified)).toContain("affected: validate (src/Controller.ts:9)");
+    expect(formatImpact(noQualified)).toContain("- validate (src/Controller.ts:9)");
   });
 
   it("keeps bare-named affected symbols in other files", () => {
@@ -72,7 +72,7 @@ describe("formatImpact", () => {
         id: "implementation:src/InvoiceService.ts#validate",
         kind: "implementation",
         label: "src/InvoiceService.ts#validate",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
           affected: [{ name: "validate", kind: "function", filePath: "src/Controller.ts", startLine: 9, qualifiedName: "validate" }],
@@ -80,17 +80,17 @@ describe("formatImpact", () => {
       },
     ];
 
-    expect(formatImpact(bare)).toContain("affected: validate (src/Controller.ts:9)");
+    expect(formatImpact(bare)).toContain("- validate (src/Controller.ts:9)");
   });
 
-  it("prints the reason when affected is unavailable", () => {
+  it("prints the reason when technical impact is unavailable", () => {
     const unavailable = result();
     unavailable.nodes = [
       {
         id: "implementation:src/InvoiceService.ts#validate",
         kind: "implementation",
         label: "src/InvoiceService.ts#validate",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "validate", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, qualifiedName: "validate" },
           affected: null,
@@ -99,8 +99,22 @@ describe("formatImpact", () => {
       },
     ];
 
-    expect(formatImpact(unavailable)).toContain('impact lookup for "validate" is ambiguous; multiple symbols share this name');
-    expect(formatImpact(unavailable)).not.toContain("affected:");
+    const formatted = formatImpact(unavailable);
+    expect(formatted).toContain('⚠ impact lookup for "validate" is ambiguous; multiple symbols share this name');
+    expect(formatted).not.toContain("technical impact:");
+  });
+
+  it("prints a warning section when code intelligence is unavailable", () => {
+    const offline = result();
+    offline.codeIntel = { enabled: true, initialized: false, reason: "codegraph not initialized" };
+    for (const node of offline.nodes) {
+      if (node.kind === "implementation") {
+        node.codeIntel = { status: "unavailable", reason: "codegraph not initialized" };
+      }
+    }
+
+    const formatted = formatImpact(offline);
+    expect(formatted).toContain("Code intelligence\n⚠ codegraph not initialized");
   });
 
   it("prints a miss", () => {
@@ -120,7 +134,7 @@ function result(): ImpactResult {
         id: "implementation:src/InvoiceService.ts#canDownload",
         kind: "implementation",
         label: "src/InvoiceService.ts#canDownload",
-        codegraph: {
+        codeIntel: {
           status: "resolved",
           symbol: { name: "canDownload", kind: "function", filePath: "src/InvoiceService.ts", startLine: 1, signature: "(): boolean" },
           affected: [{ name: "downloadInvoice", kind: "function", filePath: "src/Controller.ts", startLine: 5, qualifiedName: "downloadInvoice" }],

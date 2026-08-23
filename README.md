@@ -77,13 +77,22 @@ Check project health:
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" doctor
 ```
 
-Show everything connected to a field, rule, or UI contract:
+Show everything downstream of a field, rule, or UI contract:
 
 ```bash
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact invoice.downloadAllowed
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact RULE-BILLING-001
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact UI-INVOICE-001
 ```
+
+Impact is directional: changing a field affects the rules that read it, a rule change affects the fields it writes and the UI contracts that require it. Tests and implementation references are shown as evidence but never propagate impact further (two rules sharing a test do not affect each other). Add `--code` to enrich implementation references with technical symbol impact from the [CodeGraph](https://github.com/oraios/serena) CLI:
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact invoice.downloadAllowed --code
+```
+
+Semantic impact never depends on CodeGraph being installed or initialized; enrichment failures are reported as warnings while the semantic result stays complete. Enrichment queries the existing CodeGraph index — run `codegraph sync` explicitly when you want to refresh it, `logicgraph impact` will never index your repository behind your back.
+
 
 ## Example business rule
 
@@ -151,10 +160,11 @@ The impact graph links rules, UI contracts, fields, implementation references, a
 
 ## Planned next steps
 
-1. CodeGraph adapter
-2. UI/Playwright verification
-3. MCP server
-4. LLM-assisted rule discovery
+1. UI-TDD verification with a Playwright adapter (`logicgraph verify`)
+2. MCP server
+3. LLM-assisted rule discovery
+
+(CodeGraph enrichment of `logicgraph impact --code` shipped earlier; see above.)
 
 ## Architectural principle
 
