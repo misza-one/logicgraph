@@ -117,6 +117,8 @@ Unknown `expected.type` values:
 - `verify run` reports `partial` for that UI contract.
 - Exit code is `1`; CI must not treat partial verification as fully green.
 
+Trigger events `input`, `change`, and `select` are also partial in V1 because the current contract shape has no value to type/select. `click`, `toggle`, `submit`, and `navigate` are machine-actionable.
+
 ## Scaffold Behavior
 
 For each selected UI contract:

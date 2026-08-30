@@ -158,6 +158,24 @@ tests:
 
 The impact graph links rules, UI contracts, fields, implementation references, and tests in memory. It is intentionally local and ephemeral; persistence and external graph adapters come later.
 
+Generate UI verification specs from UI contracts:
+
+```yaml
+# .logicgraph/config.yaml
+verify:
+  baseUrl: http://localhost:3443
+  specDir: tests/logicgraph
+  pages:
+    InvoiceDetails: /invoices/fixture-paid
+```
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" verify scaffold UI-INVOICE-001
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" verify run UI-INVOICE-001
+```
+
+`verify scaffold` writes `tests/logicgraph/<UI-ID>.spec.ts` and records it in the contract's `tests:` evidence. `verify run` delegates to the application's own Playwright install via `npx playwright test ... --reporter=json`; LogicGraph does not bundle Playwright.
+
 ## Planned next steps
 
 1. UI-TDD verification with a Playwright adapter (`logicgraph verify`)
