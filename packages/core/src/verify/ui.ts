@@ -107,6 +107,9 @@ function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contr
 
 async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
   const normalized = normalizedSpecDir(specDir);
+  if (normalized.length === 0) {
+    throw new Error("verify.specDir must not normalize to an empty path.");
+  }
   if (isAbsolute(specDir) || isAbsolute(normalized) || /^[A-Za-z]:\//.test(normalized)) {
     throw new Error("verify.specDir must be repository-relative.");
   }
@@ -170,7 +173,7 @@ export function generateUiVerificationSpec(contract: UIContract, route: string, 
     lines.push("", ...partialReasons.map((reason) => `  // not machine-verifiable: ${commentText(reason)}`));
   }
 
-  lines.push("});", "", findByTargetHelper(), "");
+  lines.push("});", "", findByTargetHelper(), "", expectTextVisibleHelper(), "");
   return lines.join("\n");
 }
 
@@ -200,7 +203,7 @@ function assertionLines(result: Record<string, unknown>, index: number, contract
     return [...locatorLines(`expected${index}`, result, contract), `  await expect(expected${index}).toBeEnabled();`];
   }
   if (type === "text-visible" && stringField(result, "text")) {
-    return [`  await expect(page.getByText(${quoted(stringField(result, "text")!)})).toBeVisible();`];
+    return [`  await expectTextVisible(page, ${quoted(stringField(result, "text")!)});`];
   }
   if (type === "url-contains" && stringField(result, "value")) {
     return [`  await expect(page).toHaveURL(new RegExp(${quoted(escapeRegExp(stringField(result, "value")!))}));`];
@@ -247,6 +250,22 @@ function findByTargetHelper(): string {
     "    const value = JSON.stringify(target);",
     "    return page.locator(`[id=${value}]`).first();",
     "  }",
+    "}",
+  ].join("\n");
+}
+
+function expectTextVisibleHelper(): string {
+  return [
+    "async function expectTextVisible(page: Page, text: string): Promise<void> {",
+    "  const matches = page.getByText(text);",
+    "  await expect.poll(async () => {",
+    "    for (let index = 0; index < await matches.count(); index++) {",
+    "      if (await matches.nth(index).isVisible()) {",
+    "        return true;",
+    "      }",
+    "    }",
+    "    return false;",
+    "  }).toBe(true);",
     "}",
   ].join("\n");
 }

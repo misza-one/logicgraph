@@ -53,7 +53,8 @@ describe("UI verification core", () => {
     expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" }).first();');
     expect(spec).toContain("await subject.click();");
     expect(spec).toContain("await expect(byTestId).toBeAttached({ timeout: 1000 });");
-    expect(spec).toContain('await expect(page.getByText("Download")).toBeVisible();');
+    expect(spec).toContain('await expectTextVisible(page, "Download");');
+    expect(spec).toContain("await expect.poll(async () => {");
     expect(spec).toContain('await expect(page).toHaveURL(new RegExp("/invoices/"));');
     expect(spec).not.toContain("not machine-verifiable");
   });
@@ -108,6 +109,13 @@ describe("UI verification core", () => {
     await writeContract(cwd, contractYaml());
 
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
+  });
+
+  it("rejects specDir values that normalize to an empty path", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: '\\\\'\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir must not normalize to an empty path");
   });
 
   it("rejects specDir symlinks that resolve outside the repository", async () => {
