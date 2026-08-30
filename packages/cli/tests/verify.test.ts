@@ -151,6 +151,29 @@ describe("verify commands", () => {
     expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "Playwright exited with code 1: global teardown failed" }]);
   });
 
+  it("fails passed specs when the Playwright report includes runner errors", async () => {
+    const cwd = await project(contractYaml());
+    await writeFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-002.yaml"), contractYaml().replace("UI-INVOICE-001", "UI-INVOICE-002"), "utf8");
+    await scaffoldUiVerification({ cwd });
+
+    const result = await runUiVerification({ cwd, runner: async () => ({
+      stdout: JSON.stringify({
+        suites: [
+          { file: "tests/logicgraph/UI-INVOICE-001.spec.ts", specs: [{ tests: [{ results: [{ status: "failed" }] }] }] },
+          { file: "tests/logicgraph/UI-INVOICE-002.spec.ts", specs: [{ tests: [{ results: [{ status: "passed" }] }] }] },
+        ],
+        errors: [{ message: "global teardown failed" }],
+      }),
+      stderr: "",
+      exitCode: 1,
+    }) });
+
+    expect(result.items).toEqual([
+      { contractId: "UI-INVOICE-001", status: "failed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts", reason: "Playwright report errors: global teardown failed" },
+      { contractId: "UI-INVOICE-002", status: "failed", specRelativePath: "tests/logicgraph/UI-INVOICE-002.spec.ts", reason: "Playwright report errors: global teardown failed" },
+    ]);
+  });
+
   it("requires baseUrl for verify run", async () => {
     const cwd = await project(contractYaml(), "verify:\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await scaffoldUiVerification({ cwd });

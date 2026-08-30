@@ -44,6 +44,16 @@ describe("UI verification core", () => {
     expect(plan.items[0].spec).toBeUndefined();
   });
 
+  it("does not treat inherited page names as configured routes", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\n");
+    await writeContract(cwd, contractYaml().replace("page: InvoiceDetails", "page: toString"));
+
+    const plan = await buildUiVerificationPlan({ cwd });
+
+    expect(plan.items).toMatchObject([{ status: "needs-route", reason: "missing verify.pages.toString" }]);
+    expect(plan.items[0].spec).toBeUndefined();
+  });
+
   it("generates deterministic specs for known browser-observable assertions", () => {
     const spec = generateUiVerificationSpec(contract(), "/invoices/fixture-paid");
 

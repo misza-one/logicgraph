@@ -203,8 +203,10 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
     return { items };
   }
 
-  if (result.exitCode !== 0 && ![...parsed.statuses.values()].includes("failed")) {
-    const reason = `Playwright exited with code ${result.exitCode}${result.stderr ? `: ${result.stderr}` : ""}`;
+  if (parsed.errors.length > 0 || (result.exitCode !== 0 && ![...parsed.statuses.values()].includes("failed"))) {
+    const reason = parsed.errors.length > 0
+      ? `Playwright report errors: ${parsed.errors.join(", ")}`
+      : `Playwright exited with code ${result.exitCode}${result.stderr ? `: ${result.stderr}` : ""}`;
     items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
     return { items };
   }
@@ -253,14 +255,14 @@ export function formatRunResult(result: VerifyRunResult): string {
   return lines.join("\n").trimEnd();
 }
 
-export function parsePlaywrightReport(stdout: string): { ok: true; statuses: Map<string, "passed" | "failed"> } | { ok: false; reason: string } {
+export function parsePlaywrightReport(stdout: string): { ok: true; statuses: Map<string, "passed" | "failed">; errors: string[] } | { ok: false; reason: string } {
   try {
     const parsed = JSON.parse(stdout) as PlaywrightReport;
     const statuses = new Map<string, "passed" | "failed">();
     for (const suite of parsed.suites ?? []) {
       collectSuiteStatuses(suite, statuses);
     }
-    return { ok: true, statuses };
+    return { ok: true, statuses, errors: (parsed.errors ?? []).map((error) => error.message || "Playwright reported a runner error") };
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : String(error) };
   }
@@ -388,6 +390,7 @@ async function exists(path: string): Promise<boolean> {
 
 interface PlaywrightReport {
   suites?: PlaywrightSuite[];
+  errors?: { message?: string }[];
 }
 
 interface PlaywrightSuite {

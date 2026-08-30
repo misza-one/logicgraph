@@ -80,7 +80,7 @@ export function generatedSpecRelativePath(specDir: string, contractId: string): 
 
 function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contractPath: string, contractRelativePath: string): UiVerificationPlanItem {
   const specRelativePath = generatedSpecRelativePath(verify.specDir, contract.id);
-  const route = verify.pages[contract.page];
+  const route = Object.hasOwn(verify.pages, contract.page) ? verify.pages[contract.page] : undefined;
   const partialReasons = unknownVerificationReasons(contract);
   const base = {
     contract,
