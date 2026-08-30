@@ -65,6 +65,9 @@ export async function buildUiVerificationPlan(options: BuildUiVerificationPlanOp
 
 export function unknownVerificationReasons(contract: UIContract): string[] {
   const reasons = contract.expected.flatMap(assertionReason);
+  for (const scenario of contract.scenarios) {
+    reasons.push(`scenario ${quoted(scenario.name)} is not machine-verifiable in v1`);
+  }
   if (["change", "input", "select"].includes(contract.trigger.event)) {
     reasons.push(`trigger event "${contract.trigger.event}" requires input data and is not machine-actionable in v1`);
   }
@@ -159,7 +162,7 @@ export function generateUiVerificationSpec(contract: UIContract, route: string, 
   }
 
   if (partialReasons.length > 0) {
-    lines.push("", ...partialReasons.map((reason) => `  // not machine-verifiable: ${reason}`));
+    lines.push("", ...partialReasons.map((reason) => `  // not machine-verifiable: ${commentText(reason)}`));
   }
 
   lines.push("});", "", findByTargetHelper(), "");
@@ -180,7 +183,7 @@ function assertionReason(result: Record<string, unknown>): string[] {
   if (["element-visible", "element-enabled", "text-visible", "url-contains"].includes(type)) {
     return [];
   }
-  return [`unknown expected type "${type}"`];
+  return [`unknown expected type ${quoted(type)}`];
 }
 
 function assertionLines(result: Record<string, unknown>, index: number, contract: UIContract): string[] {
@@ -197,7 +200,7 @@ function assertionLines(result: Record<string, unknown>, index: number, contract
   if (type === "url-contains" && stringField(result, "value")) {
     return [`  await expect(page).toHaveURL(new RegExp(${quoted(escapeRegExp(stringField(result, "value")!))}));`];
   }
-  return [`  // not machine-verifiable: ${assertionReason(result).join(", ")}`];
+  return [`  // not machine-verifiable: ${commentText(assertionReason(result).join(", "))}`];
 }
 
 function locatorLines(variable: string, source: Record<string, unknown>, contract: UIContract, preferRole = false): string[] {
@@ -231,11 +234,8 @@ function triggerLines(contract: UIContract): string[] {
 function findByTargetHelper(): string {
   return [
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
-    "  const byTestId = page.getByTestId(target);",
-    "  if (await byTestId.count()) {",
-    "    return byTestId.first();",
-    "  }",
-    "  return page.locator(`#${target}`).first();",
+    "  const value = JSON.stringify(target);",
+    "  return page.locator(`[data-testid=${value}], [id=${value}]`).first();",
     "}",
   ].join("\n");
 }
@@ -247,6 +247,10 @@ function stringField(source: Record<string, unknown>, field: string): string | u
 
 function quoted(value: string): string {
   return JSON.stringify(value);
+}
+
+function commentText(value: string): string {
+  return value.replace(/[\r\n\u2028\u2029]/g, " ");
 }
 
 function escapeRegExp(value: string): string {

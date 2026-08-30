@@ -27,6 +27,19 @@ describe("verify commands", () => {
     expect(second.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "unchanged", updatedContract: false }]);
   });
 
+  it("refuses to overwrite unowned spec files", async () => {
+    const cwd = await project(contractYaml());
+    await mkdir(join(cwd, "tests", "logicgraph"), { recursive: true });
+    const spec = join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts");
+    await writeFile(spec, "// hand-authored test\n", "utf8");
+
+    const result = await scaffoldUiVerification({ cwd });
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to overwrite unowned spec tests/logicgraph/UI-INVOICE-001.spec.ts", updatedContract: false }]);
+    expect(await readFile(spec, "utf8")).toBe("// hand-authored test\n");
+    expect(await readFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml"), "utf8")).not.toContain("tests:");
+  });
+
   it("maps Playwright JSON to passed contract results", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });

@@ -53,7 +53,7 @@ Rules:
 - If a route is missing, scaffold reports `needs-route` and does not generate a broken spec.
 - Generated specs navigate with `new URL(route, process.env.LOGICGRAPH_BASE_URL).toString()`; the CLI sets that environment variable from `verify.baseUrl` during `verify run`.
 
-`scenario.given` is not used for seeding in V1. It is emitted as comments or metadata in generated specs. The configured route is responsible for putting the application into the required fixture state.
+`scenario.given` is not used for seeding in V1. The configured route is responsible for putting the application into the required fixture state. Contracts with `scenarios[]` are reported as `partial` until scenario-specific `when`/`then` execution is implemented.
 
 ## Architecture
 
@@ -117,7 +117,7 @@ Unknown `expected.type` values:
 - `verify run` reports `partial` for that UI contract.
 - Exit code is `1`; CI must not treat partial verification as fully green.
 
-Trigger events `input`, `change`, and `select` are also partial in V1 because the current contract shape has no value to type/select. `click`, `toggle`, `submit`, and `navigate` are machine-actionable.
+Trigger events `input`, `change`, and `select` are also partial in V1 because the current contract shape has no value to type/select. `click`, `toggle`, `submit`, and `navigate` are machine-actionable. Contracts with `scenarios[]` are partial because V1 does not execute scenario-specific `when`/`then` blocks.
 
 ## Scaffold Behavior
 

@@ -64,6 +64,21 @@ describe("UI verification core", () => {
     expect(generateUiVerificationSpec(ui, "/profile")).toContain('not machine-verifiable: unknown expected type "profile-saved"');
   });
 
+  it("escapes line breaks in not-machine-verifiable comments", () => {
+    const ui = { ...contract(), expected: [{ type: "bad\nthrow new Error('boom')" }] };
+    const spec = generateUiVerificationSpec(ui, "/profile");
+
+    expect(spec).toContain('not machine-verifiable: unknown expected type "bad\\nthrow new Error');
+    expect(spec).not.toContain("\nthrow new Error('boom')");
+  });
+
+  it("marks scenarios as partial until scenario assertions are implemented", () => {
+    const ui = { ...contract(), expected: [], scenarios: [{ name: "paid invoice", given: {}, then: [{ type: "text-visible", text: "Download" }] }] };
+
+    expect(unknownVerificationReasons(ui)).toEqual(['scenario "paid invoice" is not machine-verifiable in v1']);
+    expect(generateUiVerificationSpec(ui, "/profile")).toContain('not machine-verifiable: scenario "paid invoice" is not machine-verifiable in v1');
+  });
+
   it("builds ready plans with route, spec path, and partial reasons", async () => {
     const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  baseUrl: http://localhost:3443\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(cwd, contractYaml());
