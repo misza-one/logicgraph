@@ -131,6 +131,10 @@ async function repositoryWritePathError(cwd: string, targetPath: string): Promis
   }
 
   const root = resolve(cwd);
+  if (resolve(targetPath) === root) {
+    return undefined;
+  }
+
   let current = dirname(targetPath);
   while (current !== root && current !== dirname(current)) {
     if (await pathExists(current)) {
@@ -186,6 +190,10 @@ function assertionReason(result: Record<string, unknown>): string[] {
   if (!type) {
     return ["expected result is missing type"];
   }
+  const targetReason = invalidOptionalString(result, "target") ?? invalidOptionalString(result, "id");
+  if (["element-visible", "element-enabled"].includes(type) && targetReason) {
+    return [targetReason];
+  }
   if (type === "text-visible" && !stringField(result, "text")) {
     return ['expected type "text-visible" requires string field "text"'];
   }
@@ -199,6 +207,11 @@ function assertionReason(result: Record<string, unknown>): string[] {
 }
 
 function assertionLines(result: Record<string, unknown>, index: number, contract: UIContract): string[] {
+  const reasons = assertionReason(result);
+  if (reasons.length > 0) {
+    return [`  // not machine-verifiable: ${commentText(reasons.join(", "))}`];
+  }
+
   const type = stringField(result, "type");
   if (type === "element-visible") {
     return [...locatorLines(`expected${index}`, result, contract), `  await expect(expected${index}).toBeVisible();`];
@@ -212,7 +225,7 @@ function assertionLines(result: Record<string, unknown>, index: number, contract
   if (type === "url-contains" && stringField(result, "value")) {
     return [`  await expect(page).toHaveURL(new RegExp(${quoted(escapeRegExp(stringField(result, "value")!))}));`];
   }
-  return [`  // not machine-verifiable: ${commentText(assertionReason(result).join(", "))}`];
+  return [];
 }
 
 function locatorLines(variable: string, source: Record<string, unknown>, contract: UIContract, preferRole = false): string[] {
@@ -291,6 +304,12 @@ function expectTextVisibleHelper(): string {
 function stringField(source: Record<string, unknown>, field: string): string | undefined {
   const value = source[field];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function invalidOptionalString(source: Record<string, unknown>, field: string): string | undefined {
+  return Object.hasOwn(source, field) && !stringField(source, field)
+    ? `expected field "${field}" must be a non-empty string`
+    : undefined;
 }
 
 function quoted(value: string): string {

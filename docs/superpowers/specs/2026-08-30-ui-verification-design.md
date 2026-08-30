@@ -110,6 +110,7 @@ Locator rules:
 - If `target` is omitted, use `contract.element`.
 - `contract.element.role + label` maps to `page.getByRole(role, { name: label })`.
 - `contract.element.id` maps to test id / CSS id fallback.
+- If an assertion supplies `target` or `id`, it must be a non-empty string; malformed locator fields make the contract `partial` instead of falling back to a different element.
 
 Unknown `expected.type` values:
 

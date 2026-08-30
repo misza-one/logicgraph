@@ -66,6 +66,15 @@ describe("UI verification core", () => {
     expect(generateUiVerificationSpec(ui, "/profile")).toContain('not machine-verifiable: unknown expected type "profile-saved"');
   });
 
+  it("marks malformed assertion targets as partial", () => {
+    const ui = { ...contract(), expected: [{ type: "element-visible", target: null }] };
+    const spec = generateUiVerificationSpec(ui, "/profile");
+
+    expect(unknownVerificationReasons(ui)).toEqual(['expected field "target" must be a non-empty string']);
+    expect(spec).toContain('not machine-verifiable: expected field "target" must be a non-empty string');
+    expect(spec).not.toContain("const expected0");
+  });
+
   it("escapes line breaks in not-machine-verifiable comments", () => {
     const ui = { ...contract(), expected: [{ type: "bad\nthrow new Error('boom')" }] };
     const spec = generateUiVerificationSpec(ui, "/profile");
@@ -118,6 +127,15 @@ describe("UI verification core", () => {
     await writeContract(cwd, contractYaml());
 
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
+  });
+
+  it("allows the repository root as specDir", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: .\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+
+    const plan = await buildUiVerificationPlan({ cwd });
+
+    expect(plan.items).toMatchObject([{ status: "ready", specRelativePath: "./UI-INVOICE-001.spec.ts" }]);
   });
 
   it("rejects backslash traversal in specDir before path normalization", async () => {
