@@ -50,7 +50,7 @@ Rules:
 - `specDir` defaults to `tests/logicgraph`.
 - `specDir` must be repository-relative and any existing target or ancestor must be a directory.
 - `specDir` is normalized before generated paths and Playwright filters are built.
-- `baseUrl` is required for `verify run`, not for `verify scaffold`.
+- `baseUrl` is required for `verify run`, not for `verify scaffold`, and must be an absolute `http` or `https` URL.
 - `pages[contract.page]` is required to generate a runnable spec.
 - If a route is missing, scaffold reports `needs-route` and does not generate a broken spec.
 - Generated specs navigate with `new URL(route, process.env.LOGICGRAPH_BASE_URL).toString()`; the CLI sets that environment variable from `verify.baseUrl` during `verify run`.

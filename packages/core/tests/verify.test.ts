@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildUiVerificationPlan,
   generateUiVerificationSpec,
+  hasGeneratedSpecEvidence,
   logicGraphConfigSchema,
   unknownVerificationReasons,
   type UIContract,
@@ -27,6 +28,18 @@ describe("UI verification core", () => {
       journeys: "journeys",
       verify: { pages: { InvoiceDetails: "/invoices/fixture-paid" } },
     }).verify).toEqual({ specDir: "tests/logicgraph", pages: { InvoiceDetails: "/invoices/fixture-paid" } });
+  });
+
+  it("rejects unusable verify baseUrls", () => {
+    for (const baseUrl of ["localhost:3443", "/relative", "mailto:test@example.com"]) {
+      expect(logicGraphConfigSchema.safeParse({
+        version: 1,
+        rules: "rules",
+        uiContracts: "ui-contracts",
+        journeys: "journeys",
+        verify: { baseUrl },
+      }).success).toBe(false);
+    }
   });
 
   it("classifies contracts without page routes as needs-route", async () => {
@@ -206,6 +219,7 @@ describe("UI verification core", () => {
     const plan = await buildUiVerificationPlan({ cwd });
 
     expect(plan.items).toMatchObject([{ status: "ready", specRelativePath: "./UI-INVOICE-001.spec.ts" }]);
+    expect(hasGeneratedSpecEvidence({ ...contract(), tests: ["UI-INVOICE-001.spec.ts"] }, cwd, ".")).toBe(true);
 
     const parent = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: tests/..\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(parent, contractYaml());
