@@ -1,9 +1,10 @@
+import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import type { VerifyConfig } from "../config/schema.js";
 import { loadProjectUIContracts, type UIContractFile } from "../ui-contracts/load.js";
 import type { UIContract } from "../ui-contracts/schema.js";
-import { pathExists, relativePath, repositoryPathError } from "../yaml.js";
+import { relativePath, repositoryPathError } from "../yaml.js";
 
 const PLAYWRIGHT_ARIA_ROLES = new Set("alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox complementary contentinfo definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading img insertion link list listbox listitem log main marquee math meter menu menubar menuitem menuitemcheckbox menuitemradio navigation none note option paragraph presentation progressbar radio radiogroup region row rowgroup rowheader scrollbar search searchbox separator slider spinbutton status strong subscript superscript switch tab table tablist tabpanel term textbox time timer toolbar tooltip tree treegrid treeitem".split(" "));
 
@@ -137,9 +138,18 @@ async function repositoryWritePathError(cwd: string, targetPath: string): Promis
     return undefined;
   }
 
+  const targetStats = await stat(targetPath).catch(() => undefined);
+  if (targetStats && !targetStats.isDirectory()) {
+    return `${relativePath(cwd, targetPath)} is not a directory`;
+  }
+
   let current = dirname(targetPath);
   while (current !== root && current !== dirname(current)) {
-    if (await pathExists(current)) {
+    const currentStats = await stat(current).catch(() => undefined);
+    if (currentStats && !currentStats.isDirectory()) {
+      return `${relativePath(cwd, current)} is not a directory`;
+    }
+    if (currentStats) {
       return repositoryPathError(cwd, current);
     }
     current = dirname(current);

@@ -213,6 +213,20 @@ describe("UI verification core", () => {
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir must not normalize to an empty path");
   });
 
+  it("rejects specDir paths that are or contain regular files", async () => {
+    const fileTarget = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(fileTarget, contractYaml());
+    await writeFile(join(fileTarget, "specs"), "not a directory", "utf8");
+
+    await expect(buildUiVerificationPlan({ cwd: fileTarget })).rejects.toThrow("verify.specDir specs is not a directory");
+
+    const fileAncestor = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: specs/nested\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(fileAncestor, contractYaml());
+    await writeFile(join(fileAncestor, "specs"), "not a directory", "utf8");
+
+    await expect(buildUiVerificationPlan({ cwd: fileAncestor })).rejects.toThrow("verify.specDir specs is not a directory");
+  });
+
   it("rejects specDir symlinks that resolve outside the repository", async () => {
     const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: linked-specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(cwd, contractYaml());

@@ -48,6 +48,7 @@ verify:
 Rules:
 
 - `specDir` defaults to `tests/logicgraph`.
+- `specDir` must be repository-relative and any existing target or ancestor must be a directory.
 - `baseUrl` is required for `verify run`, not for `verify scaffold`.
 - `pages[contract.page]` is required to generate a runnable spec.
 - If a route is missing, scaffold reports `needs-route` and does not generate a broken spec.
