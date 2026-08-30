@@ -129,11 +129,15 @@ describe("UI verification core", () => {
     const label = { ...contract(), expected: [{ type: "element-visible", label: "" }] };
     const textTarget = { ...contract(), expected: [{ type: "text-visible", text: "Download", target: null }] };
     const urlTarget = { ...contract(), expected: [{ type: "url-contains", value: "/invoices/", target: "invoice_status" }] };
+    const mixed = { ...contract(), expected: [{ type: "element-visible", target: "save", role: "alert" }] };
+    const duplicate = { ...contract(), expected: [{ type: "element-visible", target: "save", id: "submit" }] };
 
     expect(unknownVerificationReasons(role)).toEqual(['expected field "role" must be a non-empty string']);
     expect(unknownVerificationReasons(label)).toEqual(['expected field "label" must be a non-empty string']);
     expect(unknownVerificationReasons(textTarget)).toEqual(['expected field "target" must be a non-empty string']);
     expect(unknownVerificationReasons(urlTarget)).toEqual(['expected type "url-contains" does not support locator fields in v1']);
+    expect(unknownVerificationReasons(mixed)).toEqual(["expected locator fields must not mix target/id with role/label"]);
+    expect(unknownVerificationReasons(duplicate)).toEqual(["expected locator fields must not specify both target and id"]);
   });
 
   it("escapes line breaks in not-machine-verifiable comments", () => {

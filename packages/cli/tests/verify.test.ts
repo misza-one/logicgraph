@@ -96,9 +96,9 @@ describe("verify commands", () => {
   });
 
   it("passes generated specs after Playwright's option separator", async () => {
-    const cwd = await project(contractYaml(), "verify:\n  baseUrl: http://localhost:3443\n  specDir: --project=chromium\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    const cwd = await project(contractYaml(), "verify:\n  baseUrl: http://localhost:3443\n  specDir: '--project=[chromium]'\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await scaffoldUiVerification({ cwd });
-    const specPath = join(cwd, "--project=chromium", "UI-INVOICE-001.spec.ts");
+    const specPath = join(cwd, "--project=[chromium]", "UI-INVOICE-001.spec.ts");
     await writeFile(specPath, (await readFile(specPath, "utf8")).replace(/\n/g, "\r\n"), "utf8");
     let seenArgs: string[] = [];
 
@@ -109,8 +109,8 @@ describe("verify commands", () => {
       return playwrightResult("passed");
     } });
 
-    expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "--project=chromium/UI-INVOICE-001.spec.ts" }]);
-    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "--reporter=json", "--", "--project=chromium/UI-INVOICE-001.spec.ts"]);
+    expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "--project=[chromium]/UI-INVOICE-001.spec.ts" }]);
+    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "--reporter=json", "--", "--project=\\[chromium\\]/UI-INVOICE-001\\.spec\\.ts"]);
     expect(formatRunResult(result)).toContain("✓ UI-INVOICE-001  passed");
   });
 

@@ -117,6 +117,7 @@ Locator rules:
 - `contract.element.id` maps to test id / CSS id fallback.
 - `text-visible` assertions with locator fields scope the text search to that locator.
 - `url-contains` assertions do not support locator fields in v1; supplied locator fields make them `partial`.
+- Assertions must choose one locator family: `target/id` or `role/label`; mixed locator families are `partial`.
 - If an assertion supplies `target`, `id`, `role`, or `label`, it must be a non-empty string; malformed locator fields make the contract `partial` instead of falling back to a different element.
 - If an assertion supplies an unsupported `role`, it is `partial` instead of forcing Playwright to throw on `getByRole`.
 
@@ -165,7 +166,7 @@ Scaffold UI verification
 2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's `tests:` evidence.
 3. Requires `verify.baseUrl`.
 4. Refuses to run stale generated specs; users must rerun `verify scaffold` after contract changes.
-5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_FILE=<tmp-report> npx --no-install playwright test --reporter=json -- <specs...>`.
+5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_FILE=<tmp-report> npx --no-install playwright test --reporter=json -- <escaped-spec-filters...>`.
 6. Reads the JSON report from the dedicated file so project stdout noise cannot corrupt parsing.
 7. Fails all runnable contracts when the report contains Playwright runner errors such as global setup/teardown failures.
 8. Maps Playwright JSON results back to UI contract IDs by spec filename, using the final retry outcome for each Playwright test.

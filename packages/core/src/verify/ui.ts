@@ -206,6 +206,10 @@ function assertionReason(result: Record<string, unknown>, contract: UIContract):
   if (locatorReason) {
     return [locatorReason];
   }
+  const locatorConflict = conflictingLocatorReason(result);
+  if (locatorConflict) {
+    return [locatorConflict];
+  }
   const role = stringField(result, "role");
   if (role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
     return [`expected field "role" uses unsupported Playwright ARIA role ${quoted(role)}`];
@@ -301,6 +305,17 @@ function isMachineActionableTrigger(event: UIContract["trigger"]["event"]): bool
 
 function hasLocator(source: Record<string, unknown>): boolean {
   return ["target", "id", "role", "label"].some((field) => stringField(source, field));
+}
+
+function conflictingLocatorReason(source: Record<string, unknown>): string | undefined {
+  const hasTargetLocator = Boolean(stringField(source, "target") || stringField(source, "id"));
+  const hasRoleLocator = Boolean(stringField(source, "role") || stringField(source, "label"));
+  if (hasTargetLocator && hasRoleLocator) {
+    return "expected locator fields must not mix target/id with role/label";
+  }
+  return stringField(source, "target") && stringField(source, "id")
+    ? "expected locator fields must not specify both target and id"
+    : undefined;
 }
 
 function findByTargetHelper(): string {
