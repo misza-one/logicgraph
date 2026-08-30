@@ -192,7 +192,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
   const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
   const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
     cwd: plan.cwd,
-    env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath },
+    env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
   });
   const report = await readTextIfExists(reportPath) ?? result.stdout;
   const parsed = parsePlaywrightReport(report);

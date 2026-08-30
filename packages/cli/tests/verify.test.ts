@@ -86,7 +86,7 @@ describe("verify commands", () => {
     const result = await runUiVerification({ cwd, runner: async (args, options) => {
       seenArgs = args;
       expect(options.env.LOGICGRAPH_BASE_URL).toBe("http://localhost:3443");
-      expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toMatch(/report\.json$/);
+      expect(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE).toMatch(/report\.json$/);
       return playwrightResult("passed");
     } });
 
@@ -98,13 +98,24 @@ describe("verify commands", () => {
   it("reads the JSON reporter output from its dedicated file", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });
+    const previous = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+    process.env.PLAYWRIGHT_JSON_OUTPUT_FILE = join(cwd, "caller-report.json");
 
-    const result = await runUiVerification({ cwd, runner: async (_args, options) => {
-      await writeFile(String(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME), playwrightResult("passed").stdout, "utf8");
-      return { stdout: "global setup noise", stderr: "", exitCode: 0 };
-    } });
+    try {
+      const result = await runUiVerification({ cwd, runner: async (_args, options) => {
+        expect(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE).not.toBe(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE);
+        await writeFile(String(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE), playwrightResult("passed").stdout, "utf8");
+        return { stdout: "global setup noise", stderr: "", exitCode: 0 };
+      } });
 
-    expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
+      expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+      } else {
+        process.env.PLAYWRIGHT_JSON_OUTPUT_FILE = previous;
+      }
+    }
   });
 
   it("fails run when the generated spec is stale", async () => {
