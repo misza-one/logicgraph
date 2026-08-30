@@ -252,7 +252,7 @@ export function parsePlaywrightReport(stdout: string): { ok: true; statuses: Map
 
 async function defaultPlaywrightRunner(args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<PlaywrightRunResult> {
   try {
-    const { stdout, stderr } = await run("npx", args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER });
+    const { stdout, stderr } = await run(npxCommand(), args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER });
     return { stdout, stderr, exitCode: 0 };
   } catch (error) {
     return {
@@ -261,6 +261,10 @@ async function defaultPlaywrightRunner(args: string[], options: { cwd: string; e
       exitCode: typeof error === "object" && error !== null && "code" in error && typeof error.code === "number" ? error.code : 1,
     };
   }
+}
+
+export function npxCommand(platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? "npx.cmd" : "npx";
 }
 
 async function addTestEvidence(contractPath: string, specRelativePath: string): Promise<boolean> {
@@ -291,7 +295,9 @@ function collectSuiteStatuses(suite: PlaywrightSuite, statuses: Map<string, "pas
   if (!contractId) {
     return;
   }
-  const results = (suite.specs ?? []).flatMap((spec) => spec.tests ?? []).flatMap((test) => test.results ?? []);
+  const results = (suite.specs ?? [])
+    .flatMap((spec) => spec.tests ?? [])
+    .flatMap((test) => test.results?.at(-1) ? [test.results.at(-1)!] : []);
   if (results.length === 0) {
     return;
   }

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatRunResult,
   formatScaffoldResult,
+  npxCommand,
   parsePlaywrightReport,
   runUiVerification,
   scaffoldUiVerification,
@@ -116,6 +117,15 @@ describe("verify commands", () => {
     }
   });
 
+  it("uses the final Playwright retry outcome", () => {
+    const report = parsePlaywrightReport(JSON.stringify({ suites: [{ file: "tests/logicgraph/UI-INVOICE-001.spec.ts", specs: [{ tests: [{ results: [{ status: "failed" }, { status: "passed" }] }] }] }] }));
+
+    expect(report).toMatchObject({ ok: true });
+    if (report.ok) {
+      expect(report.statuses.get("UI-INVOICE-001")).toBe("passed");
+    }
+  });
+
   it("treats skipped-only Playwright results as failed", () => {
     const report = parsePlaywrightReport(JSON.stringify({ suites: [{ file: "tests/logicgraph/UI-INVOICE-001.spec.ts", specs: [{ tests: [{ results: [{ status: "skipped" }] }] }] }] }));
 
@@ -123,6 +133,11 @@ describe("verify commands", () => {
     if (report.ok) {
       expect(report.statuses.get("UI-INVOICE-001")).toBe("failed");
     }
+  });
+
+  it("uses the Windows npx command name", () => {
+    expect(npxCommand("win32")).toBe("npx.cmd");
+    expect(npxCommand("linux")).toBe("npx");
   });
 });
 

@@ -22,7 +22,7 @@ logicgraph verify run [UI-ID]
 
 `scaffold` generates or updates deterministic Playwright specs.
 
-`run` delegates to the user's project with `npx playwright test <specs...> --reporter=json` and maps results back to UI contracts.
+`run` delegates to the user's project with `npx --no-install playwright test <specs...> --reporter=json` and maps results back to UI contracts.
 
 ## Non-Goals
 
@@ -70,7 +70,7 @@ Keep the implementation split small:
   - Wires `verify scaffold` and `verify run` commands.
   - Writes generated spec files.
   - Updates `tests:` in UI contract YAML idempotently.
-  - Executes `npx playwright test ... --reporter=json`.
+  - Executes `npx --no-install playwright test ... --reporter=json`.
   - Parses/report results and sets exit codes.
 
 The boundary is:
@@ -153,9 +153,10 @@ Scaffold UI verification
 1. Loads selected UI contracts.
 2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's `tests:` evidence.
 3. Requires `verify.baseUrl`.
-4. Executes `LOGICGRAPH_BASE_URL=<baseUrl> npx playwright test <specs...> --reporter=json`.
-5. Maps Playwright JSON results back to UI contract IDs by spec filename.
-6. Marks contracts with unknown assertion types as `partial` even when the Playwright spec passes.
+4. Refuses to run stale generated specs; users must rerun `verify scaffold` after contract changes.
+5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> npx --no-install playwright test <specs...> --reporter=json`.
+6. Maps Playwright JSON results back to UI contract IDs by spec filename, using the final retry outcome for each Playwright test.
+7. Marks contracts with unknown assertion types as `partial` even when the Playwright spec passes.
 
 `verify run` does not execute arbitrary paths from `tests:`. Other user-authored tests remain evidence for impact/doctor, but the verification runner only owns generated specs under `specDir`.
 

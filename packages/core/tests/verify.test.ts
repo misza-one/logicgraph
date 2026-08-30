@@ -102,6 +102,13 @@ describe("UI verification core", () => {
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
   });
 
+  it("rejects backslash traversal in specDir before path normalization", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: ..\\outside\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
+  });
+
   it("rejects specDir symlinks that resolve outside the repository", async () => {
     const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: linked-specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(cwd, contractYaml());

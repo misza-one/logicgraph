@@ -75,7 +75,7 @@ export function unknownVerificationReasons(contract: UIContract): string[] {
 }
 
 export function generatedSpecRelativePath(specDir: string, contractId: string): string {
-  return `${specDir.replace(/\\/g, "/").replace(/\/+$/, "")}/${contractId}.spec.ts`;
+  return `${normalizedSpecDir(specDir)}/${contractId}.spec.ts`;
 }
 
 function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contractPath: string, contractRelativePath: string): UiVerificationPlanItem {
@@ -106,14 +106,19 @@ function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contr
 }
 
 async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
-  if (isAbsolute(specDir)) {
+  const normalized = normalizedSpecDir(specDir);
+  if (isAbsolute(specDir) || isAbsolute(normalized) || /^[A-Za-z]:\//.test(normalized)) {
     throw new Error("verify.specDir must be repository-relative.");
   }
 
-  const error = await repositoryWritePathError(cwd, resolve(cwd, specDir));
+  const error = await repositoryWritePathError(cwd, resolve(cwd, normalized));
   if (error) {
     throw new Error(`verify.specDir ${error}`);
   }
+}
+
+function normalizedSpecDir(specDir: string): string {
+  return specDir.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
 async function repositoryWritePathError(cwd: string, targetPath: string): Promise<string | undefined> {
