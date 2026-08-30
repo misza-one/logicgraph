@@ -5,6 +5,8 @@ import { loadProjectUIContracts, type UIContractFile } from "../ui-contracts/loa
 import type { UIContract } from "../ui-contracts/schema.js";
 import { pathExists, relativePath, repositoryPathError } from "../yaml.js";
 
+const PLAYWRIGHT_ARIA_ROLES = new Set("alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox complementary contentinfo definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading img insertion link list listbox listitem log main marquee math meter menu menubar menuitem menuitemcheckbox menuitemradio navigation none note option paragraph presentation progressbar radio radiogroup region row rowgroup rowheader scrollbar search searchbox separator slider spinbutton status strong subscript superscript switch tab table tablist tabpanel term textbox time timer toolbar tooltip tree treegrid treeitem".split(" "));
+
 export type UiVerificationPlanStatus = "ready" | "needs-route" | "skipped";
 export type UiVerificationRunStatus = "passed" | "failed" | "partial" | "skipped";
 
@@ -194,6 +196,10 @@ function assertionReason(result: Record<string, unknown>): string[] {
   if (["element-visible", "element-enabled"].includes(type) && targetReason) {
     return [targetReason];
   }
+  const role = stringField(result, "role");
+  if (["element-visible", "element-enabled"].includes(type) && role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
+    return [`expected field "role" uses unsupported Playwright ARIA role ${quoted(role)}`];
+  }
   if (type === "text-visible" && !stringField(result, "text")) {
     return ['expected type "text-visible" requires string field "text"'];
   }
@@ -236,7 +242,7 @@ function locatorLines(variable: string, source: Record<string, unknown>, contrac
 
   const role = stringField(source, "role") ?? contract.element.role;
   const label = stringField(source, "label") ?? contract.element.label;
-  if (label) {
+  if (label && PLAYWRIGHT_ARIA_ROLES.has(role)) {
     return [`  const ${variable} = page.getByRole(${quoted(role)} as never, { name: ${quoted(label)} }).first();`];
   }
 
@@ -273,12 +279,12 @@ function isMachineActionableTrigger(event: UIContract["trigger"]["event"]): bool
 function findByTargetHelper(): string {
   return [
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
-    "  const byTestId = page.getByTestId(target).first();",
+    "  const value = JSON.stringify(target);",
+    "  const byTestId = page.locator(`[data-testid=${value}]`).first();",
     "  try {",
     "    await expect(byTestId).toBeAttached();",
     "    return byTestId;",
     "  } catch {",
-    "    const value = JSON.stringify(target);",
     "    return page.locator(`[id=${value}]`).first();",
     "  }",
     "}",

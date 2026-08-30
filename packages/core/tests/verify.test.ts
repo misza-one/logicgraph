@@ -62,11 +62,31 @@ describe("UI verification core", () => {
     expect(spec).toContain("await page.goto(new URL(route, baseUrl).toString());");
     expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" }).first();');
     expect(spec).toContain("await subject.click();");
+    expect(spec).toContain("page.locator(`[data-testid=${value}]`).first();");
+    expect(spec).not.toContain("getByTestId");
     expect(spec).toContain("await expect(byTestId).toBeAttached();");
     expect(spec).toContain('await expectTextVisible(page, "Download");');
     expect(spec).toContain("await expect.poll(async () => {");
     expect(spec).toContain('await expect(page).toHaveURL(new RegExp("/invoices/"));');
     expect(spec).not.toContain("not machine-verifiable");
+  });
+
+  it("falls back to target lookup for unsupported element roles", () => {
+    const base = contract();
+    const ui = { ...base, element: { ...base.element, role: "chart" } };
+    const spec = generateUiVerificationSpec(ui, "/reports");
+
+    expect(spec).toContain('const subject = await findByTarget(page, "download_invoice_button");');
+    expect(spec).not.toContain('getByRole("chart"');
+  });
+
+  it("marks unsupported assertion roles as partial", () => {
+    const ui = { ...contract(), expected: [{ type: "element-visible", role: "chart", label: "Revenue" }] };
+    const spec = generateUiVerificationSpec(ui, "/reports");
+
+    expect(unknownVerificationReasons(ui)).toEqual(['expected field "role" uses unsupported Playwright ARIA role "chart"']);
+    expect(spec).toContain('not machine-verifiable: expected field "role" uses unsupported Playwright ARIA role "chart"');
+    expect(spec).not.toContain("const expected0");
   });
 
   it("marks unknown expected types as partial and comments them in the spec", () => {
