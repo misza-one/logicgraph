@@ -111,9 +111,11 @@ Locator rules:
 - If `target` is omitted, use `contract.element`.
 - Supported `contract.element.role + label` maps to `page.getByRole(role, { name: label })`; unsupported roles fall back to `contract.element.id`.
 - Assertion locators with `role` and no `label` map to `page.getByRole(role)`.
+- Assertion locators with `label` and no `role` use `contract.element.role`; if that role is unsupported, the assertion is `partial`.
 - Role locators preserve Playwright strictness; repeated role/name matches are not silently reduced to the first match.
 - `contract.element.id` maps to test id / CSS id fallback.
 - `text-visible` assertions with locator fields scope the text search to that locator.
+- `url-contains` assertions do not support locator fields in v1; supplied locator fields make them `partial`.
 - If an assertion supplies `target`, `id`, `role`, or `label`, it must be a non-empty string; malformed locator fields make the contract `partial` instead of falling back to a different element.
 - If an assertion supplies an unsupported `role`, it is `partial` instead of forcing Playwright to throw on `getByRole`.
 

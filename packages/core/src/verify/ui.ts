@@ -66,7 +66,7 @@ export async function buildUiVerificationPlan(options: BuildUiVerificationPlanOp
 }
 
 export function unknownVerificationReasons(contract: UIContract): string[] {
-  const reasons = contract.expected.flatMap(assertionReason);
+  const reasons = contract.expected.flatMap((result) => assertionReason(result, contract));
   for (const scenario of contract.scenarios) {
     reasons.push(`scenario ${quoted(scenario.name)} is not machine-verifiable in v1`);
   }
@@ -187,7 +187,7 @@ export function generateUiVerificationSpec(contract: UIContract, route: string, 
   return lines.join("\n");
 }
 
-function assertionReason(result: Record<string, unknown>): string[] {
+function assertionReason(result: Record<string, unknown>, contract: UIContract): string[] {
   const type = stringField(result, "type");
   if (!type) {
     return ["expected result is missing type"];
@@ -200,11 +200,17 @@ function assertionReason(result: Record<string, unknown>): string[] {
   if (role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
     return [`expected field "role" uses unsupported Playwright ARIA role ${quoted(role)}`];
   }
+  if (stringField(result, "label") && !role && !PLAYWRIGHT_ARIA_ROLES.has(contract.element.role)) {
+    return [`expected field "label" cannot use unsupported fallback role ${quoted(contract.element.role)}`];
+  }
   if (type === "text-visible" && !stringField(result, "text")) {
     return ['expected type "text-visible" requires string field "text"'];
   }
   if (type === "url-contains" && !stringField(result, "value")) {
     return ['expected type "url-contains" requires string field "value"'];
+  }
+  if (type === "url-contains" && hasLocator(result)) {
+    return ['expected type "url-contains" does not support locator fields in v1'];
   }
   if (["element-visible", "element-enabled", "text-visible", "url-contains"].includes(type)) {
     return [];
@@ -213,7 +219,7 @@ function assertionReason(result: Record<string, unknown>): string[] {
 }
 
 function assertionLines(result: Record<string, unknown>, index: number, contract: UIContract): string[] {
-  const reasons = assertionReason(result);
+  const reasons = assertionReason(result, contract);
   if (reasons.length > 0) {
     return [`  // not machine-verifiable: ${commentText(reasons.join(", "))}`];
   }

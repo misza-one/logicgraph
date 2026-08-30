@@ -99,9 +99,11 @@ describe("UI verification core", () => {
 
   it("marks unsupported assertion roles as partial", () => {
     const ui = { ...contract(), expected: [{ type: "element-visible", role: "chart", label: "Revenue" }] };
+    const fallbackRole = { ...contract(), element: { id: "download_invoice_button", role: "chart" }, expected: [{ type: "element-visible", label: "Revenue" }] };
     const spec = generateUiVerificationSpec(ui, "/reports");
 
     expect(unknownVerificationReasons(ui)).toEqual(['expected field "role" uses unsupported Playwright ARIA role "chart"']);
+    expect(unknownVerificationReasons(fallbackRole)).toEqual(['expected field "label" cannot use unsupported fallback role "chart"']);
     expect(spec).toContain('not machine-verifiable: expected field "role" uses unsupported Playwright ARIA role "chart"');
     expect(spec).not.toContain("const expected0");
   });
@@ -126,10 +128,12 @@ describe("UI verification core", () => {
     const role = { ...contract(), expected: [{ type: "element-visible", role: null }] };
     const label = { ...contract(), expected: [{ type: "element-visible", label: "" }] };
     const textTarget = { ...contract(), expected: [{ type: "text-visible", text: "Download", target: null }] };
+    const urlTarget = { ...contract(), expected: [{ type: "url-contains", value: "/invoices/", target: "invoice_status" }] };
 
     expect(unknownVerificationReasons(role)).toEqual(['expected field "role" must be a non-empty string']);
     expect(unknownVerificationReasons(label)).toEqual(['expected field "label" must be a non-empty string']);
     expect(unknownVerificationReasons(textTarget)).toEqual(['expected field "target" must be a non-empty string']);
+    expect(unknownVerificationReasons(urlTarget)).toEqual(['expected type "url-contains" does not support locator fields in v1']);
   });
 
   it("escapes line breaks in not-machine-verifiable comments", () => {
