@@ -110,7 +110,9 @@ Locator rules:
 - `data-testid` keeps precedence for the full Playwright assertion timeout before falling back to CSS id.
 - If `target` is omitted, use `contract.element`.
 - Supported `contract.element.role + label` maps to `page.getByRole(role, { name: label })`; unsupported roles fall back to `contract.element.id`.
+- Role locators preserve Playwright strictness; repeated role/name matches are not silently reduced to the first match.
 - `contract.element.id` maps to test id / CSS id fallback.
+- `text-visible` assertions with locator fields scope the text search to that locator.
 - If an assertion supplies `target`, `id`, `role`, or `label`, it must be a non-empty string; malformed locator fields make the contract `partial` instead of falling back to a different element.
 - If an assertion supplies an unsupported `role`, it is `partial` instead of forcing Playwright to throw on `getByRole`.
 

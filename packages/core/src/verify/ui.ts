@@ -226,7 +226,9 @@ function assertionLines(result: Record<string, unknown>, index: number, contract
     return [...locatorLines(`expected${index}`, result, contract), `  await expect(expected${index}).toBeEnabled();`];
   }
   if (type === "text-visible" && stringField(result, "text")) {
-    return [`  await expectTextVisible(page, ${quoted(stringField(result, "text")!)});`];
+    return hasLocator(result)
+      ? [...locatorLines(`expected${index}`, result, contract), `  await expectTextVisible(expected${index}, ${quoted(stringField(result, "text")!)});`]
+      : [`  await expectTextVisible(page, ${quoted(stringField(result, "text")!)});`];
   }
   if (type === "url-contains" && stringField(result, "value")) {
     return [`  await expect(page).toHaveURL(new RegExp(${quoted(escapeRegExp(stringField(result, "value")!))}));`];
@@ -243,7 +245,7 @@ function locatorLines(variable: string, source: Record<string, unknown>, contrac
   const role = stringField(source, "role") ?? contract.element.role;
   const label = stringField(source, "label") ?? contract.element.label;
   if (label && PLAYWRIGHT_ARIA_ROLES.has(role)) {
-    return [`  const ${variable} = page.getByRole(${quoted(role)} as never, { name: ${quoted(label)} }).first();`];
+    return [`  const ${variable} = page.getByRole(${quoted(role)} as never, { name: ${quoted(label)} });`];
   }
 
   return [`  const ${variable} = await findByTarget(page, ${quoted(contract.element.id)});`];
@@ -276,16 +278,23 @@ function isMachineActionableTrigger(event: UIContract["trigger"]["event"]): bool
   return ["click", "toggle", "submit", "navigate"].includes(event);
 }
 
+function hasLocator(source: Record<string, unknown>): boolean {
+  return ["target", "id", "role", "label"].some((field) => stringField(source, field));
+}
+
 function findByTargetHelper(): string {
   return [
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
     "  const value = JSON.stringify(target);",
-    "  const byTestId = page.locator(`[data-testid=${value}]`).first();",
+    "  const byTestId = page.locator(`[data-testid=${value}]`);",
     "  try {",
     "    await expect(byTestId).toBeAttached();",
     "    return byTestId;",
-    "  } catch {",
-    "    return page.locator(`[id=${value}]`).first();",
+    "  } catch (error) {",
+    "    if (error instanceof Error && error.message.includes(\"strict mode violation\")) {",
+    "      throw error;",
+    "    }",
+    "    return page.locator(`[id=${value}]`);",
     "  }",
     "}",
   ].join("\n");
@@ -293,8 +302,8 @@ function findByTargetHelper(): string {
 
 function expectTextVisibleHelper(): string {
   return [
-    "async function expectTextVisible(page: Page, text: string): Promise<void> {",
-    "  const matches = page.getByText(text);",
+    "async function expectTextVisible(root: Page | Locator, text: string): Promise<void> {",
+    "  const matches = root.getByText(text);",
     "  await expect.poll(async () => {",
     "    for (let index = 0; index < await matches.count(); index++) {",
     "      if (await matches.nth(index).isVisible()) {",

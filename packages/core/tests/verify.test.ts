@@ -60,9 +60,9 @@ describe("UI verification core", () => {
     expect(spec).toContain("// logicgraph-ui-contract: UI-INVOICE-001");
     expect(spec).toContain("process.env.LOGICGRAPH_BASE_URL");
     expect(spec).toContain("await page.goto(new URL(route, baseUrl).toString());");
-    expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" }).first();');
+    expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" });');
     expect(spec).toContain("await subject.click();");
-    expect(spec).toContain("page.locator(`[data-testid=${value}]`).first();");
+    expect(spec).toContain("page.locator(`[data-testid=${value}]`);");
     expect(spec).not.toContain("getByTestId");
     expect(spec).toContain("await expect(byTestId).toBeAttached();");
     expect(spec).toContain('await expectTextVisible(page, "Download");');
@@ -78,6 +78,15 @@ describe("UI verification core", () => {
 
     expect(spec).toContain('const subject = await findByTarget(page, "download_invoice_button");');
     expect(spec).not.toContain('getByRole("chart"');
+  });
+
+  it("scopes text-visible assertions when they include locator fields", () => {
+    const ui = { ...contract(), expected: [{ type: "text-visible", text: "Paid", target: "invoice_status" }] };
+    const spec = generateUiVerificationSpec(ui, "/reports");
+
+    expect(spec).toContain('const expected0 = await findByTarget(page, "invoice_status");');
+    expect(spec).toContain('await expectTextVisible(expected0, "Paid");');
+    expect(spec).not.toContain('await expectTextVisible(page, "Paid");');
   });
 
   it("marks unsupported assertion roles as partial", () => {
