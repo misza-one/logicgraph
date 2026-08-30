@@ -91,7 +91,7 @@ describe("verify commands", () => {
     expect(run.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "generated spec tests/logicgraph/UI-INVOICE-001.spec.ts is not a file" }]);
   });
 
-  it("keeps scaffold idempotent when cwd is a symlink", async () => {
+  it("keeps scaffold and run stable when cwd is a symlink", async () => {
     const realCwd = await project(contractYaml());
     const symlinkCwd = await mkdtemp(join(tmpdir(), "logicgraph-linked-cwd-parent-"));
     const link = join(symlinkCwd, "app");
@@ -99,8 +99,15 @@ describe("verify commands", () => {
 
     await scaffoldUiVerification({ cwd: link });
     const second = await scaffoldUiVerification({ cwd: link });
+    let seenArgs: string[] = [];
+    const run = await runUiVerification({ cwd: link, runner: async (args) => {
+      seenArgs = args;
+      return playwrightResult("passed");
+    } });
 
     expect(second.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "unchanged", updatedContract: false }]);
+    expect(run.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "passed" }]);
+    expect(seenArgs.at(-1)).toBe(escapedPathFilter(join(realCwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts")));
   });
 
   it("passes generated specs after Playwright's option separator", async () => {
