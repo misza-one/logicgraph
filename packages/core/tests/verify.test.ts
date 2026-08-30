@@ -188,6 +188,11 @@ describe("UI verification core", () => {
     await writeContract(cwd, contractYaml());
 
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
+
+    const drivePrefix = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: 'C:'\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(drivePrefix, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd: drivePrefix })).rejects.toThrow("verify.specDir must be repository-relative");
   });
 
   it("allows the repository root as specDir", async () => {

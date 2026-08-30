@@ -1,4 +1,4 @@
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -67,6 +67,20 @@ describe("verify commands", () => {
 
     expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts is a symlink; refusing to write generated specs through symlinks" }]);
     await expect(readFile(join(outside, "final.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
+  });
+
+  it("reports non-file generated spec targets", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+    const specPath = join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts");
+    await rm(specPath);
+    await mkdir(specPath);
+
+    const scaffold = await scaffoldUiVerification({ cwd });
+    const run = await runUiVerification({ cwd, runner: async () => playwrightResult("passed") });
+
+    expect(scaffold.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts is not a file" }]);
+    expect(run.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "generated spec tests/logicgraph/UI-INVOICE-001.spec.ts is not a file" }]);
   });
 
   it("keeps scaffold idempotent when cwd is a symlink", async () => {

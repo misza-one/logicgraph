@@ -113,7 +113,7 @@ async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
   if (normalized.length === 0) {
     throw new Error("verify.specDir must not normalize to an empty path.");
   }
-  if (isAbsolute(specDir) || isAbsolute(normalized) || /^[A-Za-z]:\//.test(normalized)) {
+  if (isAbsolute(specDir) || isAbsolute(normalized) || /^[A-Za-z]:/.test(normalized)) {
     throw new Error("verify.specDir must be repository-relative.");
   }
 

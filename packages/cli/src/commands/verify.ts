@@ -178,6 +178,11 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `missing generated spec ${item.specRelativePath}` });
       continue;
     }
+    const specError = await existingSpecFileError(plan.cwd, item.specPath);
+    if (specError) {
+      items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `generated spec ${specError}` });
+      continue;
+    }
     if (!item.spec || normalizeLineEndings(await readFile(item.specPath, "utf8")) !== normalizeLineEndings(item.spec)) {
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `generated spec is stale; run logicgraph verify scaffold ${item.contract.id}` });
       continue;
@@ -328,6 +333,9 @@ async function specWritePathError(cwd: string, path: string): Promise<string | u
     if (stats.isSymbolicLink()) {
       return `${relativePath(cwd, target)} is a symlink; refusing to write generated specs through symlinks`;
     }
+    if (!stats.isFile()) {
+      return `${relativePath(cwd, target)} is not a file`;
+    }
     if (!isInside(realRoot, await realpath(target))) {
       return `${relativePath(cwd, target)} resolves outside repository`;
     }
@@ -336,6 +344,11 @@ async function specWritePathError(cwd: string, path: string): Promise<string | u
   }
 
   return undefined;
+}
+
+async function existingSpecFileError(cwd: string, path: string): Promise<string | undefined> {
+  const stats = await lstat(path).catch(() => undefined);
+  return stats && !stats.isFile() ? `${relativePath(cwd, path)} is not a file` : undefined;
 }
 
 function relativePath(from: string, to: string): string {
