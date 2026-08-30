@@ -52,6 +52,7 @@ Rules:
 - `specDir` is normalized before generated paths and Playwright filters are built.
 - `baseUrl` is required for `verify run`, not for `verify scaffold`, and must be an absolute `http` or `https` URL.
 - `pages[contract.page]` is required to generate a runnable spec.
+- Page routes must be relative or absolute `http`/`https` navigation URLs.
 - If a route is missing, scaffold reports `needs-route` and does not generate a broken spec.
 - Generated specs navigate with `new URL(route, process.env.LOGICGRAPH_BASE_URL).toString()`; the CLI sets that environment variable from `verify.baseUrl` during `verify run`.
 
@@ -164,7 +165,7 @@ Scaffold UI verification
 `verify run [UI-ID]`:
 
 1. Loads selected UI contracts.
-2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's `tests:` evidence.
+2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's normalized `tests:` evidence.
 3. Requires `verify.baseUrl`.
 4. Refuses to run stale generated specs; users must rerun `verify scaffold` after contract changes.
 5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_FILE=<tmp-report> npx --no-install playwright test --reporter=json -- <anchored-escaped-spec-filters...>`.

@@ -30,7 +30,7 @@ describe("UI verification core", () => {
     }).verify).toEqual({ specDir: "tests/logicgraph", pages: { InvoiceDetails: "/invoices/fixture-paid" } });
   });
 
-  it("rejects unusable verify baseUrls", () => {
+  it("rejects unusable verify URLs", () => {
     for (const baseUrl of ["localhost:3443", "/relative", "mailto:test@example.com"]) {
       expect(logicGraphConfigSchema.safeParse({
         version: 1,
@@ -40,6 +40,14 @@ describe("UI verification core", () => {
         verify: { baseUrl },
       }).success).toBe(false);
     }
+
+    expect(logicGraphConfigSchema.safeParse({
+      version: 1,
+      rules: "rules",
+      uiContracts: "ui-contracts",
+      journeys: "journeys",
+      verify: { pages: { InvoiceDetails: "http://[" } },
+    }).success).toBe(false);
   });
 
   it("classifies contracts without page routes as needs-route", async () => {
@@ -264,6 +272,12 @@ describe("UI verification core", () => {
     await symlink(outside, join(cwd, "linked-specs"), "dir");
 
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir linked-specs resolves outside repository");
+
+    const dangling = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: linked-specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(dangling, contractYaml());
+    await symlink(join(dangling, "missing-specs"), join(dangling, "linked-specs"), "dir");
+
+    await expect(buildUiVerificationPlan({ cwd: dangling })).rejects.toThrow("verify.specDir linked-specs is a dangling symlink");
   });
 });
 

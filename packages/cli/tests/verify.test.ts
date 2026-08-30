@@ -52,6 +52,16 @@ describe("verify commands", () => {
     expect(formatScaffoldResult(result)).toContain("⚠ UI-INVOICE-001  skipped: deprecated contract");
   });
 
+  it("does not duplicate normalized generated test evidence", async () => {
+    const cwd = await project(`${contractYaml()}tests:\n  - ./tests/logicgraph/UI-INVOICE-001.spec.ts\n`);
+
+    const result = await scaffoldUiVerification({ cwd });
+    const contract = await readFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml"), "utf8");
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", updatedContract: false }]);
+    expect(contract.match(/UI-INVOICE-001\.spec\.ts/g)).toHaveLength(1);
+  });
+
   it("refuses to write through dangling spec symlinks outside the repository", async () => {
     const cwd = await project(contractYaml());
     await mkdir(join(cwd, "tests", "logicgraph"), { recursive: true });

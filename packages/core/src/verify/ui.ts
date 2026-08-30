@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { lstat, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, posix, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import type { VerifyConfig } from "../config/schema.js";
@@ -139,23 +139,34 @@ async function repositoryWritePathError(cwd: string, targetPath: string): Promis
     return undefined;
   }
 
-  const targetStats = await stat(targetPath).catch(() => undefined);
-  if (targetStats && !targetStats.isDirectory()) {
-    return `${relativePath(cwd, targetPath)} is not a directory`;
+  const targetDirectoryError = await existingDirectoryError(cwd, targetPath);
+  if (targetDirectoryError) {
+    return targetDirectoryError;
   }
 
   let current = dirname(targetPath);
   while (current !== root && current !== dirname(current)) {
-    const currentStats = await stat(current).catch(() => undefined);
-    if (currentStats && !currentStats.isDirectory()) {
-      return `${relativePath(cwd, current)} is not a directory`;
+    const currentDirectoryError = await existingDirectoryError(cwd, current);
+    if (currentDirectoryError) {
+      return currentDirectoryError;
     }
-    if (currentStats) {
+    if (await stat(current).catch(() => undefined)) {
       return repositoryPathError(cwd, current);
     }
     current = dirname(current);
   }
   return undefined;
+}
+
+async function existingDirectoryError(cwd: string, path: string): Promise<string | undefined> {
+  if (!(await lstat(path).catch(() => undefined))) {
+    return undefined;
+  }
+  const stats = await stat(path).catch(() => undefined);
+  if (!stats) {
+    return `${relativePath(cwd, path)} is a dangling symlink`;
+  }
+  return stats.isDirectory() ? undefined : `${relativePath(cwd, path)} is not a directory`;
 }
 
 export function generateUiVerificationSpec(contract: UIContract, route: string, partialReasons = unknownVerificationReasons(contract)): string {

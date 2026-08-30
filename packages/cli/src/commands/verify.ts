@@ -1,7 +1,7 @@
 import { access, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import YAML, { isSeq } from "yaml";
@@ -306,7 +306,11 @@ async function addTestEvidence(contractPath: string, specRelativePath: string): 
   const doc = YAML.parseDocument(await readFile(contractPath, "utf8"));
   const tests = doc.get("tests", true);
   if (isSeq(tests)) {
-    if (tests.items.some((item) => scalarValue(item) === specRelativePath)) {
+    const expected = normalizeEvidencePath(specRelativePath);
+    if (tests.items.some((item) => {
+      const value = scalarValue(item);
+      return typeof value === "string" && normalizeEvidencePath(value) === expected;
+    })) {
       return false;
     }
     tests.add(specRelativePath);
@@ -410,6 +414,10 @@ function output(error: unknown, field: "stdout" | "stderr"): string {
 
 function scalarValue(value: unknown): unknown {
   return typeof value === "object" && value !== null && "value" in value ? value.value : value;
+}
+
+function normalizeEvidencePath(path: string): string {
+  return posix.normalize(path.replace(/\\/g, "/")).replace(/^\.\//, "");
 }
 
 async function readTextIfExists(path: string): Promise<string | undefined> {
