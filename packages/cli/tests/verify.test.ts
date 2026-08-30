@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,6 +39,18 @@ describe("verify commands", () => {
     expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to overwrite unowned spec tests/logicgraph/UI-INVOICE-001.spec.ts", updatedContract: false }]);
     expect(await readFile(spec, "utf8")).toBe("// hand-authored test\n");
     expect(await readFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml"), "utf8")).not.toContain("tests:");
+  });
+
+  it("refuses to write through dangling spec symlinks outside the repository", async () => {
+    const cwd = await project(contractYaml());
+    await mkdir(join(cwd, "tests", "logicgraph"), { recursive: true });
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-spec-"));
+    await symlink(join(outside, "UI-INVOICE-001.spec.ts"), join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts"));
+
+    const result = await scaffoldUiVerification({ cwd });
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts resolves outside repository" }]);
+    await expect(readFile(join(outside, "UI-INVOICE-001.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
   });
 
   it("maps Playwright JSON to passed contract results", async () => {
