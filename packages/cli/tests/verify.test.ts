@@ -30,11 +30,32 @@ describe("verify commands", () => {
   it("maps Playwright JSON to passed contract results", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });
+    let seenArgs: string[] = [];
 
-    const result = await runUiVerification({ cwd, runner: async () => playwrightResult("passed") });
+    const result = await runUiVerification({ cwd, runner: async (args, options) => {
+      seenArgs = args;
+      expect(options.env.LOGICGRAPH_BASE_URL).toBe("http://localhost:3443");
+      return playwrightResult("passed");
+    } });
 
     expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
+    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "tests/logicgraph/UI-INVOICE-001.spec.ts", "--reporter=json"]);
     expect(formatRunResult(result)).toContain("✓ UI-INVOICE-001  passed");
+  });
+
+  it("fails run when the generated spec is stale", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+    await writeFile(join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts"), "// stale", "utf8");
+    let called = false;
+
+    const result = await runUiVerification({ cwd, runner: async () => {
+      called = true;
+      return playwrightResult("passed");
+    } });
+
+    expect(called).toBe(false);
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "generated spec is stale; run logicgraph verify scaffold UI-INVOICE-001" }]);
   });
 
   it("reports partial when the contract has unknown expected types", async () => {
@@ -57,6 +78,15 @@ describe("verify commands", () => {
     expect(formatRunResult(result)).toContain("✗ UI-INVOICE-001  failed");
   });
 
+  it("fails run when Playwright exits nonzero despite passed suite results", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+
+    const result = await runUiVerification({ cwd, runner: async () => ({ ...playwrightResult("passed"), exitCode: 1, stderr: "global teardown failed" }) });
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "Playwright exited with code 1: global teardown failed" }]);
+  });
+
   it("requires baseUrl for verify run", async () => {
     const cwd = await project(contractYaml(), "verify:\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await scaffoldUiVerification({ cwd });
@@ -70,6 +100,15 @@ describe("verify commands", () => {
     expect(report).toMatchObject({ ok: true });
     if (report.ok) {
       expect(report.statuses.get("UI-INVOICE-001")).toBe("passed");
+    }
+  });
+
+  it("treats skipped-only Playwright results as failed", () => {
+    const report = parsePlaywrightReport(JSON.stringify({ suites: [{ file: "tests/logicgraph/UI-INVOICE-001.spec.ts", specs: [{ tests: [{ results: [{ status: "skipped" }] }] }] }] }));
+
+    expect(report).toMatchObject({ ok: true });
+    if (report.ok) {
+      expect(report.statuses.get("UI-INVOICE-001")).toBe("failed");
     }
   });
 });
@@ -98,7 +137,7 @@ expected:
 ${expected}`;
 }
 
-function playwrightResult(status: "passed" | "failed") {
+function playwrightResult(status: "passed" | "failed" | "skipped") {
   return {
     stdout: JSON.stringify({
       suites: [{

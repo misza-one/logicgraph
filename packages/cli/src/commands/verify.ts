@@ -151,6 +151,10 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `missing generated spec ${item.specRelativePath}` });
       continue;
     }
+    if (!item.spec || (await readFile(item.specPath, "utf8")) !== item.spec) {
+      items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `generated spec is stale; run logicgraph verify scaffold ${item.contract.id}` });
+      continue;
+    }
     runnable.push(item);
   }
 
@@ -158,7 +162,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
     return { items };
   }
 
-  const args = ["playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
+  const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
   const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
     cwd: plan.cwd,
     env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl },
@@ -167,6 +171,12 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
 
   if (!parsed.ok) {
     const reason = `Playwright JSON report unavailable: ${result.stderr || parsed.reason || "unknown failure"}`;
+    items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
+    return { items };
+  }
+
+  if (result.exitCode !== 0 && ![...parsed.statuses.values()].includes("failed")) {
+    const reason = `Playwright exited with code ${result.exitCode}${result.stderr ? `: ${result.stderr}` : ""}`;
     items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
     return { items };
   }
@@ -267,6 +277,10 @@ function collectSuiteStatuses(suite: PlaywrightSuite, statuses: Map<string, "pas
   }
   const results = (suite.specs ?? []).flatMap((spec) => spec.tests ?? []).flatMap((test) => test.results ?? []);
   if (results.length === 0) {
+    return;
+  }
+  if (results.every((result) => result.status === "skipped")) {
+    statuses.set(contractId, "failed");
     return;
   }
   statuses.set(contractId, results.some((result) => !["passed", "skipped"].includes(result.status ?? "")) ? "failed" : "passed");

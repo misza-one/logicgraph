@@ -1,9 +1,9 @@
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import type { VerifyConfig } from "../config/schema.js";
 import { loadProjectUIContracts, type UIContractFile } from "../ui-contracts/load.js";
 import type { UIContract } from "../ui-contracts/schema.js";
-import { relativePath } from "../yaml.js";
+import { pathExists, relativePath, repositoryPathError } from "../yaml.js";
 
 export type UiVerificationPlanStatus = "ready" | "needs-route" | "skipped";
 export type UiVerificationRunStatus = "passed" | "failed" | "partial" | "skipped";
@@ -54,6 +54,7 @@ export async function buildUiVerificationPlan(options: BuildUiVerificationPlanOp
   }
 
   const verify = config.verify;
+  await validateSpecDir(cwd, verify.specDir);
   return {
     cwd,
     baseUrl: verify.baseUrl,
@@ -99,6 +100,34 @@ function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contr
     route,
     spec: generateUiVerificationSpec(contract, route, partialReasons),
   };
+}
+
+async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
+  if (isAbsolute(specDir)) {
+    throw new Error("verify.specDir must be repository-relative.");
+  }
+
+  const error = await repositoryWritePathError(cwd, resolve(cwd, specDir));
+  if (error) {
+    throw new Error(`verify.specDir ${error}`);
+  }
+}
+
+async function repositoryWritePathError(cwd: string, targetPath: string): Promise<string | undefined> {
+  const targetError = await repositoryPathError(cwd, targetPath);
+  if (targetError) {
+    return targetError;
+  }
+
+  const root = resolve(cwd);
+  let current = dirname(targetPath);
+  while (current !== root && current !== dirname(current)) {
+    if (await pathExists(current)) {
+      return repositoryPathError(cwd, current);
+    }
+    current = dirname(current);
+  }
+  return undefined;
 }
 
 export function generateUiVerificationSpec(contract: UIContract, route: string, partialReasons = unknownVerificationReasons(contract)): string {

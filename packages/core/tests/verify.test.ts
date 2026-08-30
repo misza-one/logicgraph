@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,6 +78,22 @@ describe("UI verification core", () => {
       partialReasons: [],
     }]);
     expect(plan.items[0].spec).toContain("UI-INVOICE-001: Download invoice button");
+  });
+
+  it("rejects specDir paths outside the repository", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: ../outside\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir ../outside is outside repository");
+  });
+
+  it("rejects specDir symlinks that resolve outside the repository", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: linked-specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));
+    await symlink(outside, join(cwd, "linked-specs"), "dir");
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir linked-specs resolves outside repository");
   });
 });
 
