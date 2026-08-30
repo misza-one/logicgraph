@@ -242,10 +242,15 @@ function locatorLines(variable: string, source: Record<string, unknown>, contrac
     return [`  const ${variable} = await findByTarget(page, ${quoted(target)});`];
   }
 
-  const role = stringField(source, "role") ?? contract.element.role;
-  const label = stringField(source, "label") ?? contract.element.label;
+  const explicitRole = stringField(source, "role");
+  const explicitLabel = stringField(source, "label");
+  const role = explicitRole ?? contract.element.role;
+  const label = explicitLabel ?? (explicitRole ? undefined : contract.element.label);
   if (label && PLAYWRIGHT_ARIA_ROLES.has(role)) {
     return [`  const ${variable} = page.getByRole(${quoted(role)} as never, { name: ${quoted(label)} });`];
+  }
+  if (!preferRole && explicitRole && PLAYWRIGHT_ARIA_ROLES.has(explicitRole)) {
+    return [`  const ${variable} = page.getByRole(${quoted(explicitRole)} as never);`];
   }
 
   return [`  const ${variable} = await findByTarget(page, ${quoted(contract.element.id)});`];

@@ -89,6 +89,14 @@ describe("UI verification core", () => {
     expect(spec).not.toContain('await expectTextVisible(page, "Paid");');
   });
 
+  it("honors role-only assertion locators", () => {
+    const ui = { ...contract(), element: { id: "download_invoice_button", role: "button" }, expected: [{ type: "element-visible", role: "alert" }] };
+    const spec = generateUiVerificationSpec(ui, "/reports");
+
+    expect(spec).toContain('const expected0 = page.getByRole("alert" as never);');
+    expect(spec).not.toContain('getByRole("alert" as never, { name:');
+  });
+
   it("marks unsupported assertion roles as partial", () => {
     const ui = { ...contract(), expected: [{ type: "element-visible", role: "chart", label: "Revenue" }] };
     const spec = generateUiVerificationSpec(ui, "/reports");
