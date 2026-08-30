@@ -197,7 +197,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
   const reportDir = await mkdtemp(join(tmpdir(), "logicgraph-playwright-"));
   const reportPath = join(reportDir, "report.json");
   try {
-    const args = ["--no-install", "playwright", "test", "--reporter=json", "--", ...runnable.map((item) => escapeRegExp(item.specRelativePath))];
+    const args = ["--no-install", "playwright", "test", "--reporter=json", "--", ...runnable.map((item) => playwrightPathFilter(plan.cwd, item.specRelativePath))];
     const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
       cwd: plan.cwd,
       env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
@@ -245,8 +245,13 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
 export function formatScaffoldResult(result: VerifyScaffoldResult): string {
   const lines = ["Scaffold UI verification", ""];
   for (const item of result.items) {
-    const mark = item.status === "failed" || item.status === "needs-route" ? "✗" : item.partialReasons.length > 0 ? "⚠" : "✓";
-    lines.push(`${mark} ${item.contractId}  ${item.status === "failed" || item.status === "needs-route" ? item.reason : item.specRelativePath}`);
+    const mark = item.status === "failed" || item.status === "needs-route" ? "✗" : item.status === "skipped" || item.partialReasons.length > 0 ? "⚠" : "✓";
+    const detail = item.status === "failed" || item.status === "needs-route"
+      ? item.reason
+      : item.status === "skipped"
+        ? `skipped: ${item.reason}`
+        : item.specRelativePath;
+    lines.push(`${mark} ${item.contractId}  ${detail}`);
     if (item.updatedContract) {
       lines.push(`  updated: ${item.contractPath} tests[]`);
     }
@@ -321,6 +326,10 @@ function normalizeLineEndings(content: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function playwrightPathFilter(cwd: string, specRelativePath: string): string {
+  return `^${resolve(cwd, specRelativePath).split(sep).map(escapeRegExp).join("[/\\\\]")}$`;
 }
 
 async function specWritePathError(cwd: string, path: string): Promise<string | undefined> {

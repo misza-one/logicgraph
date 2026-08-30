@@ -206,6 +206,13 @@ describe("UI verification core", () => {
     const plan = await buildUiVerificationPlan({ cwd });
 
     expect(plan.items).toMatchObject([{ status: "ready", specRelativePath: "./UI-INVOICE-001.spec.ts" }]);
+
+    const parent = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: tests/..\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(parent, contractYaml());
+
+    const parentPlan = await buildUiVerificationPlan({ cwd: parent });
+
+    expect(parentPlan.items).toMatchObject([{ status: "ready", specRelativePath: "./UI-INVOICE-001.spec.ts" }]);
   });
 
   it("rejects backslash traversal in specDir before path normalization", async () => {

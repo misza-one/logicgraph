@@ -49,6 +49,7 @@ Rules:
 
 - `specDir` defaults to `tests/logicgraph`.
 - `specDir` must be repository-relative and any existing target or ancestor must be a directory.
+- `specDir` is normalized before generated paths and Playwright filters are built.
 - `baseUrl` is required for `verify run`, not for `verify scaffold`.
 - `pages[contract.page]` is required to generate a runnable spec.
 - If a route is missing, scaffold reports `needs-route` and does not generate a broken spec.
@@ -166,7 +167,7 @@ Scaffold UI verification
 2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's `tests:` evidence.
 3. Requires `verify.baseUrl`.
 4. Refuses to run stale generated specs; users must rerun `verify scaffold` after contract changes.
-5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_FILE=<tmp-report> npx --no-install playwright test --reporter=json -- <escaped-spec-filters...>`.
+5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_FILE=<tmp-report> npx --no-install playwright test --reporter=json -- <anchored-escaped-spec-filters...>`.
 6. Reads the JSON report from the dedicated file so project stdout noise cannot corrupt parsing.
 7. Fails all runnable contracts when the report contains Playwright runner errors such as global setup/teardown failures.
 8. Maps Playwright JSON results back to UI contract IDs by spec filename, using the final retry outcome for each Playwright test.

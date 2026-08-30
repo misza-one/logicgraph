@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   formatRunResult,
@@ -42,6 +42,14 @@ describe("verify commands", () => {
     expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to overwrite unowned spec tests/logicgraph/UI-INVOICE-001.spec.ts", updatedContract: false }]);
     expect(await readFile(spec, "utf8")).toBe("// hand-authored test\n");
     expect(await readFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml"), "utf8")).not.toContain("tests:");
+  });
+
+  it("reports deprecated scaffold items as skipped", async () => {
+    const cwd = await project(contractYaml().replace("status: active", "status: deprecated"));
+
+    const result = await scaffoldUiVerification({ cwd });
+
+    expect(formatScaffoldResult(result)).toContain("⚠ UI-INVOICE-001  skipped: deprecated contract");
   });
 
   it("refuses to write through dangling spec symlinks outside the repository", async () => {
@@ -110,7 +118,7 @@ describe("verify commands", () => {
     } });
 
     expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "--project=[chromium]/UI-INVOICE-001.spec.ts" }]);
-    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "--reporter=json", "--", "--project=\\[chromium\\]/UI-INVOICE-001\\.spec\\.ts"]);
+    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "--reporter=json", "--", escapedPathFilter(specPath)]);
     expect(formatRunResult(result)).toContain("✓ UI-INVOICE-001  passed");
   });
 
@@ -282,4 +290,8 @@ function playwrightResult(status: "passed" | "failed" | "skipped") {
     stderr: "",
     exitCode: status === "passed" ? 0 : 1,
   };
+}
+
+function escapedPathFilter(path: string): string {
+  return `^${path.split(sep).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[/\\\\]")}$`;
 }

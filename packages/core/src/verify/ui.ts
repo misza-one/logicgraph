@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, posix, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import type { VerifyConfig } from "../config/schema.js";
 import { loadProjectUIContracts, type UIContractFile } from "../ui-contracts/load.js";
@@ -124,7 +124,8 @@ async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
 }
 
 function normalizedSpecDir(specDir: string): string {
-  return specDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalized = specDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized ? posix.normalize(normalized) : "";
 }
 
 async function repositoryWritePathError(cwd: string, targetPath: string): Promise<string | undefined> {
