@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
@@ -146,6 +146,19 @@ describe("verify commands", () => {
     const result = await runUiVerification({ cwd });
 
     expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "Playwright JSON report unavailable: Playwright binary not found at node_modules/.bin/playwright. Install Playwright in this project." }]);
+  });
+
+  it("runs the local Playwright binary", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+    const command = playwrightCommand(cwd);
+    await mkdir(join(cwd, "node_modules", ".bin"), { recursive: true });
+    await writeFile(command, `#!/bin/sh\nprintf '%s' '${playwrightResult("passed").stdout}' > "$PLAYWRIGHT_JSON_OUTPUT_FILE"\n`, "utf8");
+    await chmod(command, 0o755);
+
+    const result = await runUiVerification({ cwd });
+
+    expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
   });
 
   it("reads the JSON reporter output from its dedicated file", async () => {

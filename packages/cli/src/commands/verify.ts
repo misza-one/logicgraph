@@ -291,7 +291,7 @@ async function defaultPlaywrightRunner(args: string[], options: { cwd: string; e
     return { stdout: "", stderr: `Playwright binary not found at ${relativePath(options.cwd, command)}. Install Playwright in this project.`, exitCode: 1 };
   }
   try {
-    const { stdout, stderr } = await run(command, args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER });
+    const { stdout, stderr } = await run(command, args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER, shell: process.platform === "win32" });
     return { stdout, stderr, exitCode: 0 };
   } catch (error) {
     return {

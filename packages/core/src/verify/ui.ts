@@ -393,5 +393,5 @@ export function hasGeneratedSpecEvidence(contract: UIContract, cwd: string, spec
 }
 
 function evidencePath(path: string): string {
-  return path.replace(/^\.\//, "");
+  return posix.normalize(path.replace(/\\/g, "/")).replace(/^\.\//, "");
 }
