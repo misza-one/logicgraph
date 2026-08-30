@@ -275,7 +275,7 @@ function findByTargetHelper(): string {
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
     "  const byTestId = page.getByTestId(target).first();",
     "  try {",
-    "    await expect(byTestId).toBeAttached({ timeout: 1000 });",
+    "    await expect(byTestId).toBeAttached();",
     "    return byTestId;",
     "  } catch {",
     "    const value = JSON.stringify(target);",

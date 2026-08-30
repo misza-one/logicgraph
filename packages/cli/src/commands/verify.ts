@@ -1,7 +1,8 @@
-import { access, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import YAML, { isSeq } from "yaml";
 import {
@@ -187,12 +188,14 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
     return { items };
   }
 
+  const reportPath = join(await mkdtemp(join(tmpdir(), "logicgraph-playwright-")), "report.json");
   const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
   const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
     cwd: plan.cwd,
-    env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl },
+    env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath },
   });
-  const parsed = parsePlaywrightReport(result.stdout);
+  const report = await readTextIfExists(reportPath) ?? result.stdout;
+  const parsed = parsePlaywrightReport(report);
 
   if (!parsed.ok) {
     const reason = `Playwright JSON report unavailable: ${result.stderr || parsed.reason || "unknown failure"}`;

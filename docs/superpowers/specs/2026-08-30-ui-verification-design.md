@@ -107,6 +107,7 @@ expected:
 Locator rules:
 
 - `target` means `data-testid` first, then CSS id fallback.
+- `data-testid` keeps precedence for the full Playwright assertion timeout before falling back to CSS id.
 - If `target` is omitted, use `contract.element`.
 - `contract.element.role + label` maps to `page.getByRole(role, { name: label })`.
 - `contract.element.id` maps to test id / CSS id fallback.
@@ -157,9 +158,10 @@ Scaffold UI verification
 2. Resolves the deterministic generated spec path (`specDir/<UI-ID>.spec.ts`) and confirms it is listed in the contract's `tests:` evidence.
 3. Requires `verify.baseUrl`.
 4. Refuses to run stale generated specs; users must rerun `verify scaffold` after contract changes.
-5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> npx --no-install playwright test <specs...> --reporter=json`.
-6. Maps Playwright JSON results back to UI contract IDs by spec filename, using the final retry outcome for each Playwright test.
-7. Marks contracts with unknown assertion types as `partial` even when the Playwright spec passes.
+5. Executes `LOGICGRAPH_BASE_URL=<baseUrl> PLAYWRIGHT_JSON_OUTPUT_NAME=<tmp-report> npx --no-install playwright test <specs...> --reporter=json`.
+6. Reads the JSON report from the dedicated file so project stdout noise cannot corrupt parsing.
+7. Maps Playwright JSON results back to UI contract IDs by spec filename, using the final retry outcome for each Playwright test.
+8. Marks contracts with unknown assertion types as `partial` even when the Playwright spec passes.
 
 `verify run` does not execute arbitrary paths from `tests:`. Other user-authored tests remain evidence for impact/doctor, but the verification runner only owns generated specs under `specDir`.
 

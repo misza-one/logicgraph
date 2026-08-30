@@ -52,7 +52,7 @@ describe("UI verification core", () => {
     expect(spec).toContain("await page.goto(new URL(route, baseUrl).toString());");
     expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" }).first();');
     expect(spec).toContain("await subject.click();");
-    expect(spec).toContain("await expect(byTestId).toBeAttached({ timeout: 1000 });");
+    expect(spec).toContain("await expect(byTestId).toBeAttached();");
     expect(spec).toContain('await expectTextVisible(page, "Download");');
     expect(spec).toContain("await expect.poll(async () => {");
     expect(spec).toContain('await expect(page).toHaveURL(new RegExp("/invoices/"));');

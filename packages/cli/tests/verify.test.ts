@@ -86,12 +86,25 @@ describe("verify commands", () => {
     const result = await runUiVerification({ cwd, runner: async (args, options) => {
       seenArgs = args;
       expect(options.env.LOGICGRAPH_BASE_URL).toBe("http://localhost:3443");
+      expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toMatch(/report\.json$/);
       return playwrightResult("passed");
     } });
 
     expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
     expect(seenArgs).toEqual(["--no-install", "playwright", "test", "tests/logicgraph/UI-INVOICE-001.spec.ts", "--reporter=json"]);
     expect(formatRunResult(result)).toContain("✓ UI-INVOICE-001  passed");
+  });
+
+  it("reads the JSON reporter output from its dedicated file", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+
+    const result = await runUiVerification({ cwd, runner: async (_args, options) => {
+      await writeFile(String(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME), playwrightResult("passed").stdout, "utf8");
+      return { stdout: "global setup noise", stderr: "", exitCode: 0 };
+    } });
+
+    expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
   });
 
   it("fails run when the generated spec is stale", async () => {
