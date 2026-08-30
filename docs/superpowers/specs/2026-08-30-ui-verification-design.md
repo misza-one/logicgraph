@@ -130,6 +130,8 @@ For each selected UI contract:
 
 Generated specs include a small header marker with the UI contract ID. This keeps updates deterministic and lets `verify run` distinguish LogicGraph-generated specs from unrelated user tests.
 
+Scaffold refuses to write through a symlink at the final generated spec path. Generated specs are regular files owned by LogicGraph; symlink support can be added later if a real use case appears.
+
 Statuses:
 
 - `generated`: spec written.

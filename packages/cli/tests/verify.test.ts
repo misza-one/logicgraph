@@ -49,7 +49,7 @@ describe("verify commands", () => {
 
     const result = await scaffoldUiVerification({ cwd });
 
-    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts resolves outside repository" }]);
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts is a symlink; refusing to write generated specs through symlinks" }]);
     await expect(readFile(join(outside, "UI-INVOICE-001.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
   });
 
@@ -62,7 +62,7 @@ describe("verify commands", () => {
 
     const result = await scaffoldUiVerification({ cwd });
 
-    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts resolves outside repository" }]);
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts is a symlink; refusing to write generated specs through symlinks" }]);
     await expect(readFile(join(outside, "final.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
   });
 
