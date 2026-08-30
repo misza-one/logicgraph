@@ -192,7 +192,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
   const reportDir = await mkdtemp(join(tmpdir(), "logicgraph-playwright-"));
   const reportPath = join(reportDir, "report.json");
   try {
-    const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
+    const args = ["--no-install", "playwright", "test", "--reporter=json", "--", ...runnable.map((item) => item.specRelativePath)];
     const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
       cwd: plan.cwd,
       env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },

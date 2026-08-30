@@ -174,7 +174,7 @@ node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" verify scaffold UI-INVOICE
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" verify run UI-INVOICE-001
 ```
 
-`verify scaffold` writes `tests/logicgraph/<UI-ID>.spec.ts` and records it in the contract's `tests:` evidence. `verify run` delegates to the application's own Playwright install via `npx playwright test ... --reporter=json`; LogicGraph does not bundle Playwright.
+`verify scaffold` writes `tests/logicgraph/<UI-ID>.spec.ts` and records it in the contract's `tests:` evidence. `verify run` delegates to the application's own Playwright install via `npx playwright test --reporter=json -- ...`; LogicGraph does not bundle Playwright.
 
 ## Planned next steps
 
