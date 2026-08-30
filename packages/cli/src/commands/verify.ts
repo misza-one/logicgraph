@@ -198,7 +198,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
   const reportPath = join(reportDir, "report.json");
   try {
     const filterRoot = await realpath(plan.cwd).catch(() => plan.cwd);
-    const args = ["--no-install", "playwright", "test", "--reporter=json", "--", ...runnable.map((item) => playwrightPathFilter(filterRoot, item.specRelativePath))];
+    const args = ["test", "--reporter=json", "--", ...runnable.map((item) => playwrightPathFilter(filterRoot, item.specRelativePath))];
     const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
       cwd: plan.cwd,
       env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
@@ -286,8 +286,12 @@ export function parsePlaywrightReport(stdout: string): { ok: true; statuses: Map
 }
 
 async function defaultPlaywrightRunner(args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<PlaywrightRunResult> {
+  const command = playwrightCommand(options.cwd);
+  if (!(await exists(command))) {
+    return { stdout: "", stderr: `Playwright binary not found at ${relativePath(options.cwd, command)}. Install Playwright in this project.`, exitCode: 1 };
+  }
   try {
-    const { stdout, stderr } = await run(npxCommand(), args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER });
+    const { stdout, stderr } = await run(command, args, { cwd: options.cwd, env: options.env, maxBuffer: MAX_BUFFER });
     return { stdout, stderr, exitCode: 0 };
   } catch (error) {
     return {
@@ -298,8 +302,8 @@ async function defaultPlaywrightRunner(args: string[], options: { cwd: string; e
   }
 }
 
-export function npxCommand(platform: NodeJS.Platform = process.platform): string {
-  return platform === "win32" ? "npx.cmd" : "npx";
+export function playwrightCommand(cwd: string, platform: NodeJS.Platform = process.platform): string {
+  return join(cwd, "node_modules", ".bin", platform === "win32" ? "playwright.cmd" : "playwright");
 }
 
 async function addTestEvidence(contractPath: string, specRelativePath: string): Promise<boolean> {

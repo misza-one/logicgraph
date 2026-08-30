@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatRunResult,
   formatScaffoldResult,
-  npxCommand,
+  playwrightCommand,
   parsePlaywrightReport,
   runUiVerification,
   scaffoldUiVerification,
@@ -135,8 +135,17 @@ describe("verify commands", () => {
     } });
 
     expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "--project=[chromium]/UI-INVOICE-001.spec.ts" }]);
-    expect(seenArgs).toEqual(["--no-install", "playwright", "test", "--reporter=json", "--", escapedPathFilter(specPath)]);
+    expect(seenArgs).toEqual(["test", "--reporter=json", "--", escapedPathFilter(specPath)]);
     expect(formatRunResult(result)).toContain("✓ UI-INVOICE-001  passed");
+  });
+
+  it("reports a missing local Playwright binary without invoking npx", async () => {
+    const cwd = await project(contractYaml());
+    await scaffoldUiVerification({ cwd });
+
+    const result = await runUiVerification({ cwd });
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "Playwright JSON report unavailable: Playwright binary not found at node_modules/.bin/playwright. Install Playwright in this project." }]);
   });
 
   it("reads the JSON reporter output from its dedicated file", async () => {
@@ -266,9 +275,9 @@ describe("verify commands", () => {
     }
   });
 
-  it("uses the Windows npx command name", () => {
-    expect(npxCommand("win32")).toBe("npx.cmd");
-    expect(npxCommand("linux")).toBe("npx");
+  it("uses the local Playwright command name", () => {
+    expect(playwrightCommand("repo", "win32")).toBe(join("repo", "node_modules", ".bin", "playwright.cmd"));
+    expect(playwrightCommand("repo", "linux")).toBe(join("repo", "node_modules", ".bin", "playwright"));
   });
 });
 
