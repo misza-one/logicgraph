@@ -165,8 +165,12 @@ export function generateUiVerificationSpec(contract: UIContract, route: string, 
   lines.push("", ...locatorLines("subject", contract.element, contract, true), "  await expect(subject).toBeVisible();");
   lines.push("", ...triggerLines(contract));
 
-  for (const [index, result] of contract.expected.entries()) {
-    lines.push("", ...assertionLines(result, index, contract));
+  if (isMachineActionableTrigger(contract.trigger.event)) {
+    for (const [index, result] of contract.expected.entries()) {
+      lines.push("", ...assertionLines(result, index, contract));
+    }
+  } else {
+    lines.push("", "  // postconditions skipped because the trigger is not machine-actionable in v1.");
   }
 
   if (partialReasons.length > 0) {
@@ -231,12 +235,26 @@ function triggerLines(contract: UIContract): string[] {
     return ["  await subject.click();"];
   }
   if (contract.trigger.event === "submit") {
-    return ["  await subject.press(\"Enter\");"];
+    if (contract.element.role === "form") {
+      return [
+        "  await subject.evaluate((element) => {",
+        "    if (!(element instanceof HTMLFormElement)) {",
+        "      throw new Error(\"submit trigger requires a form element\");",
+        "    }",
+        "    element.requestSubmit();",
+        "  });",
+      ];
+    }
+    return ["  await subject.click();"];
   }
   if (contract.trigger.event === "navigate") {
     return ["  // trigger navigate is covered by page.goto above."];
   }
   return [`  // not machine-actionable in v1: trigger event ${quoted(contract.trigger.event)} requires input data.`];
+}
+
+function isMachineActionableTrigger(event: UIContract["trigger"]["event"]): boolean {
+  return ["click", "toggle", "submit", "navigate"].includes(event);
 }
 
 function findByTargetHelper(): string {

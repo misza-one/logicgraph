@@ -81,6 +81,22 @@ describe("UI verification core", () => {
     expect(generateUiVerificationSpec(ui, "/profile")).toContain('not machine-verifiable: scenario "paid invoice" is not machine-verifiable in v1');
   });
 
+  it("skips postconditions when the trigger is not machine-actionable", () => {
+    const ui = { ...contract(), trigger: { event: "input" as const } };
+    const spec = generateUiVerificationSpec(ui, "/profile");
+
+    expect(spec).toContain("postconditions skipped because the trigger is not machine-actionable in v1");
+    expect(spec).not.toContain('await expectTextVisible(page, "Download");');
+  });
+
+  it("submits form subjects with requestSubmit", () => {
+    const ui = { ...contract(), element: { id: "checkout_form", role: "form", label: "Checkout" }, trigger: { event: "submit" as const } };
+    const spec = generateUiVerificationSpec(ui, "/checkout");
+
+    expect(spec).toContain("element.requestSubmit();");
+    expect(spec).not.toContain('subject.press("Enter")');
+  });
+
   it("builds ready plans with route, spec path, and partial reasons", async () => {
     const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  baseUrl: http://localhost:3443\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(cwd, contractYaml());

@@ -66,6 +66,18 @@ describe("verify commands", () => {
     await expect(readFile(join(outside, "final.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
   });
 
+  it("keeps scaffold idempotent when cwd is a symlink", async () => {
+    const realCwd = await project(contractYaml());
+    const symlinkCwd = await mkdtemp(join(tmpdir(), "logicgraph-linked-cwd-parent-"));
+    const link = join(symlinkCwd, "app");
+    await symlink(realCwd, link, "dir");
+
+    await scaffoldUiVerification({ cwd: link });
+    const second = await scaffoldUiVerification({ cwd: link });
+
+    expect(second.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "unchanged", updatedContract: false }]);
+  });
+
   it("maps Playwright JSON to passed contract results", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });

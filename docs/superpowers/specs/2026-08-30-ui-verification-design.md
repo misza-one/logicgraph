@@ -117,7 +117,7 @@ Unknown `expected.type` values:
 - `verify run` reports `partial` for that UI contract.
 - Exit code is `1`; CI must not treat partial verification as fully green.
 
-Trigger events `input`, `change`, and `select` are also partial in V1 because the current contract shape has no value to type/select. `click`, `toggle`, `submit`, and `navigate` are machine-actionable. Contracts with `scenarios[]` are partial because V1 does not execute scenario-specific `when`/`then` blocks.
+Trigger events `input`, `change`, and `select` are also partial in V1 because the current contract shape has no value to type/select; generated specs skip postconditions for those triggers so a correct UI is not failed by an interaction LogicGraph cannot perform. `click`, `toggle`, `submit`, and `navigate` are machine-actionable. `submit` uses `requestSubmit()` when the subject is a form and `click()` otherwise. Contracts with `scenarios[]` are partial because V1 does not execute scenario-specific `when`/`then` blocks.
 
 ## Scaffold Behavior
 

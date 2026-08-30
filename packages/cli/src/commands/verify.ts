@@ -301,6 +301,7 @@ function ownsGeneratedSpec(content: string, contractId: string): boolean {
 
 async function specWritePathError(cwd: string, path: string): Promise<string | undefined> {
   const root = resolve(cwd);
+  const realRoot = await realpath(cwd).catch(() => root);
   const target = resolve(path);
 
   if (!isInside(root, target)) {
@@ -312,7 +313,7 @@ async function specWritePathError(cwd: string, path: string): Promise<string | u
     if (stats.isSymbolicLink()) {
       return `${relativePath(cwd, target)} is a symlink; refusing to write generated specs through symlinks`;
     }
-    if (!isInside(root, await realpath(target))) {
+    if (!isInside(realRoot, await realpath(target))) {
       return `${relativePath(cwd, target)} resolves outside repository`;
     }
   } catch {
