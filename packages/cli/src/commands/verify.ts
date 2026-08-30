@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, readFile, readlink, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, readlink, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -301,24 +301,43 @@ function ownsGeneratedSpec(content: string, contractId: string): boolean {
 
 async function specWritePathError(cwd: string, path: string): Promise<string | undefined> {
   const root = resolve(cwd);
-  const target = resolve(path);
+  const original = resolve(path);
+  let target = original;
+  const seen = new Set<string>();
+
   if (!isInside(root, target)) {
     return `${relativePath(cwd, target)} is outside repository`;
   }
 
-  try {
-    const stats = await lstat(target);
-    if (stats.isSymbolicLink()) {
-      const linkTarget = resolve(dirname(target), await readlink(target));
-      if (!isInside(root, linkTarget)) {
-        return `${relativePath(cwd, target)} resolves outside repository`;
-      }
+  while (true) {
+    if (seen.has(target)) {
+      return `${relativePath(cwd, original)} has a symlink cycle`;
     }
-  } catch {
-    // Missing files are normal for scaffold; parent symlinks are validated in core.
-  }
+    seen.add(target);
 
-  return undefined;
+    let stats;
+    try {
+      stats = await lstat(target);
+    } catch {
+      return undefined;
+    }
+
+    if (!stats.isSymbolicLink()) {
+      try {
+        if (!isInside(root, await realpath(target))) {
+          return `${relativePath(cwd, original)} resolves outside repository`;
+        }
+      } catch {
+        // Missing files are normal for scaffold; parent symlinks are validated in core.
+      }
+      return undefined;
+    }
+
+    target = resolve(dirname(target), await readlink(target));
+    if (!isInside(root, target)) {
+      return `${relativePath(cwd, original)} resolves outside repository`;
+    }
+  }
 }
 
 function relativePath(from: string, to: string): string {

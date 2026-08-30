@@ -239,8 +239,14 @@ function triggerLines(contract: UIContract): string[] {
 function findByTargetHelper(): string {
   return [
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
-    "  const value = JSON.stringify(target);",
-    "  return page.locator(`[data-testid=${value}], [id=${value}]`).first();",
+    "  const byTestId = page.getByTestId(target).first();",
+    "  try {",
+    "    await expect(byTestId).toBeAttached({ timeout: 1000 });",
+    "    return byTestId;",
+    "  } catch {",
+    "    const value = JSON.stringify(target);",
+    "    return page.locator(`[id=${value}]`).first();",
+    "  }",
     "}",
   ].join("\n");
 }

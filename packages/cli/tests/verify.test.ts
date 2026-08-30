@@ -53,6 +53,19 @@ describe("verify commands", () => {
     await expect(readFile(join(outside, "UI-INVOICE-001.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
   });
 
+  it("refuses to write through chained spec symlinks outside the repository", async () => {
+    const cwd = await project(contractYaml());
+    await mkdir(join(cwd, "tests", "logicgraph"), { recursive: true });
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-spec-"));
+    await symlink(join(outside, "final.spec.ts"), join(cwd, "tests", "logicgraph", "inner.spec.ts"));
+    await symlink(join(cwd, "tests", "logicgraph", "inner.spec.ts"), join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts"));
+
+    const result = await scaffoldUiVerification({ cwd });
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "refusing to write generated spec: tests/logicgraph/UI-INVOICE-001.spec.ts resolves outside repository" }]);
+    await expect(readFile(join(outside, "final.spec.ts"), "utf8")).rejects.toThrow("ENOENT");
+  });
+
   it("maps Playwright JSON to passed contract results", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });
