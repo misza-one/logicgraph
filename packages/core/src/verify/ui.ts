@@ -193,11 +193,11 @@ function assertionReason(result: Record<string, unknown>): string[] {
     return ["expected result is missing type"];
   }
   const locatorReason = invalidOptionalString(result, "target") ?? invalidOptionalString(result, "id") ?? invalidOptionalString(result, "role") ?? invalidOptionalString(result, "label");
-  if (["element-visible", "element-enabled"].includes(type) && locatorReason) {
+  if (locatorReason) {
     return [locatorReason];
   }
   const role = stringField(result, "role");
-  if (["element-visible", "element-enabled"].includes(type) && role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
+  if (role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
     return [`expected field "role" uses unsupported Playwright ARIA role ${quoted(role)}`];
   }
   if (type === "text-visible" && !stringField(result, "text")) {

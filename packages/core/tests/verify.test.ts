@@ -105,12 +105,14 @@ describe("UI verification core", () => {
     expect(spec).not.toContain("const expected0");
   });
 
-  it("marks malformed assertion role and label fields as partial", () => {
+  it("marks malformed assertion locator fields as partial for every assertion type", () => {
     const role = { ...contract(), expected: [{ type: "element-visible", role: null }] };
     const label = { ...contract(), expected: [{ type: "element-visible", label: "" }] };
+    const textTarget = { ...contract(), expected: [{ type: "text-visible", text: "Download", target: null }] };
 
     expect(unknownVerificationReasons(role)).toEqual(['expected field "role" must be a non-empty string']);
     expect(unknownVerificationReasons(label)).toEqual(['expected field "label" must be a non-empty string']);
+    expect(unknownVerificationReasons(textTarget)).toEqual(['expected field "target" must be a non-empty string']);
   });
 
   it("escapes line breaks in not-machine-verifiable comments", () => {
