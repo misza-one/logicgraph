@@ -192,9 +192,9 @@ function assertionReason(result: Record<string, unknown>): string[] {
   if (!type) {
     return ["expected result is missing type"];
   }
-  const targetReason = invalidOptionalString(result, "target") ?? invalidOptionalString(result, "id");
-  if (["element-visible", "element-enabled"].includes(type) && targetReason) {
-    return [targetReason];
+  const locatorReason = invalidOptionalString(result, "target") ?? invalidOptionalString(result, "id") ?? invalidOptionalString(result, "role") ?? invalidOptionalString(result, "label");
+  if (["element-visible", "element-enabled"].includes(type) && locatorReason) {
+    return [locatorReason];
   }
   const role = stringField(result, "role");
   if (["element-visible", "element-enabled"].includes(type) && role && !PLAYWRIGHT_ARIA_ROLES.has(role)) {
