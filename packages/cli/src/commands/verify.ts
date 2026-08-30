@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -122,7 +122,8 @@ export async function scaffoldUiVerification(options: { cwd?: string; contractId
       continue;
     }
     const existing = await readTextIfExists(item.specPath);
-    if (existing !== undefined && existing !== item.spec && !ownsGeneratedSpec(existing, item.contract.id)) {
+    const unchanged = existing !== undefined && normalizeLineEndings(existing) === normalizeLineEndings(item.spec);
+    if (existing !== undefined && !unchanged && !ownsGeneratedSpec(existing, item.contract.id)) {
       items.push({
         contractId: item.contract.id,
         status: "failed",
@@ -134,7 +135,7 @@ export async function scaffoldUiVerification(options: { cwd?: string; contractId
       });
       continue;
     }
-    const status: VerifyScaffoldStatus = existing === item.spec ? "unchanged" : "generated";
+    const status: VerifyScaffoldStatus = unchanged ? "unchanged" : "generated";
     if (status === "generated") {
       await writeFile(item.specPath, item.spec, "utf8");
     }
@@ -177,7 +178,7 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `missing generated spec ${item.specRelativePath}` });
       continue;
     }
-    if (!item.spec || (await readFile(item.specPath, "utf8")) !== item.spec) {
+    if (!item.spec || normalizeLineEndings(await readFile(item.specPath, "utf8")) !== normalizeLineEndings(item.spec)) {
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `generated spec is stale; run logicgraph verify scaffold ${item.contract.id}` });
       continue;
     }
@@ -188,44 +189,49 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
     return { items };
   }
 
-  const reportPath = join(await mkdtemp(join(tmpdir(), "logicgraph-playwright-")), "report.json");
-  const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
-  const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
-    cwd: plan.cwd,
-    env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
-  });
-  const report = await readTextIfExists(reportPath) ?? result.stdout;
-  const parsed = parsePlaywrightReport(report);
+  const reportDir = await mkdtemp(join(tmpdir(), "logicgraph-playwright-"));
+  const reportPath = join(reportDir, "report.json");
+  try {
+    const args = ["--no-install", "playwright", "test", ...runnable.map((item) => item.specRelativePath), "--reporter=json"];
+    const result = await (options.runner ?? defaultPlaywrightRunner)(args, {
+      cwd: plan.cwd,
+      env: { ...process.env, LOGICGRAPH_BASE_URL: plan.baseUrl, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
+    });
+    const report = await readTextIfExists(reportPath) ?? result.stdout;
+    const parsed = parsePlaywrightReport(report);
 
-  if (!parsed.ok) {
-    const reason = `Playwright JSON report unavailable: ${result.stderr || parsed.reason || "unknown failure"}`;
-    items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
-    return { items };
-  }
+    if (!parsed.ok) {
+      const reason = `Playwright JSON report unavailable: ${result.stderr || parsed.reason || "unknown failure"}`;
+      items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
+      return { items };
+    }
 
-  if (parsed.errors.length > 0 || (result.exitCode !== 0 && ![...parsed.statuses.values()].includes("failed"))) {
-    const reason = parsed.errors.length > 0
-      ? `Playwright report errors: ${parsed.errors.join(", ")}`
-      : `Playwright exited with code ${result.exitCode}${result.stderr ? `: ${result.stderr}` : ""}`;
-    items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
-    return { items };
-  }
+    if (parsed.errors.length > 0 || (result.exitCode !== 0 && ![...parsed.statuses.values()].includes("failed"))) {
+      const reason = parsed.errors.length > 0
+        ? `Playwright report errors: ${parsed.errors.join(", ")}`
+        : `Playwright exited with code ${result.exitCode}${result.stderr ? `: ${result.stderr}` : ""}`;
+      items.push(...runnable.map((item) => ({ contractId: item.contract.id, status: "failed" as const, specRelativePath: item.specRelativePath, reason })));
+      return { items };
+    }
 
-  for (const item of runnable) {
-    const status = parsed.statuses.get(item.contract.id);
-    if (!status) {
-      items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: "missing Playwright result" });
-      continue;
+    for (const item of runnable) {
+      const status = parsed.statuses.get(item.contract.id);
+      if (!status) {
+        items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: "missing Playwright result" });
+        continue;
+      }
+      if (status === "failed") {
+        items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath });
+        continue;
+      }
+      if (item.partialReasons.length > 0) {
+        items.push({ contractId: item.contract.id, status: "partial", specRelativePath: item.specRelativePath, reason: item.partialReasons.join(", ") });
+        continue;
+      }
+      items.push({ contractId: item.contract.id, status: "passed", specRelativePath: item.specRelativePath });
     }
-    if (status === "failed") {
-      items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath });
-      continue;
-    }
-    if (item.partialReasons.length > 0) {
-      items.push({ contractId: item.contract.id, status: "partial", specRelativePath: item.specRelativePath, reason: item.partialReasons.join(", ") });
-      continue;
-    }
-    items.push({ contractId: item.contract.id, status: "passed", specRelativePath: item.specRelativePath });
+  } finally {
+    await rm(reportDir, { recursive: true, force: true });
   }
 
   return { items };
@@ -301,7 +307,11 @@ async function addTestEvidence(contractPath: string, specRelativePath: string): 
 }
 
 function ownsGeneratedSpec(content: string, contractId: string): boolean {
-  return content.includes(`// @generated by LogicGraph\n// logicgraph-ui-contract: ${contractId}`);
+  return normalizeLineEndings(content).includes(`// @generated by LogicGraph\n// logicgraph-ui-contract: ${contractId}`);
+}
+
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n/g, "\n");
 }
 
 async function specWritePathError(cwd: string, path: string): Promise<string | undefined> {

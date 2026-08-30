@@ -20,8 +20,11 @@ describe("verify commands", () => {
 
     expect(first.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "generated", updatedContract: true }]);
     expect(formatScaffoldResult(first)).toContain("✓ UI-INVOICE-001  tests/logicgraph/UI-INVOICE-001.spec.ts");
-    expect(await readFile(join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts"), "utf8")).toContain("logicgraph-ui-contract: UI-INVOICE-001");
+    const specPath = join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts");
+    const spec = await readFile(specPath, "utf8");
+    expect(spec).toContain("logicgraph-ui-contract: UI-INVOICE-001");
     expect(await readFile(join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml"), "utf8")).toContain("tests/logicgraph/UI-INVOICE-001.spec.ts");
+    await writeFile(specPath, spec.replace(/\n/g, "\r\n"), "utf8");
 
     const second = await scaffoldUiVerification({ cwd });
 
@@ -81,6 +84,8 @@ describe("verify commands", () => {
   it("maps Playwright JSON to passed contract results", async () => {
     const cwd = await project(contractYaml());
     await scaffoldUiVerification({ cwd });
+    const specPath = join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts");
+    await writeFile(specPath, (await readFile(specPath, "utf8")).replace(/\n/g, "\r\n"), "utf8");
     let seenArgs: string[] = [];
 
     const result = await runUiVerification({ cwd, runner: async (args, options) => {
@@ -100,15 +105,18 @@ describe("verify commands", () => {
     await scaffoldUiVerification({ cwd });
     const previous = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
     process.env.PLAYWRIGHT_JSON_OUTPUT_FILE = join(cwd, "caller-report.json");
+    let reportPath = "";
 
     try {
       const result = await runUiVerification({ cwd, runner: async (_args, options) => {
         expect(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE).not.toBe(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE);
-        await writeFile(String(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE), playwrightResult("passed").stdout, "utf8");
+        reportPath = String(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE);
+        await writeFile(reportPath, playwrightResult("passed").stdout, "utf8");
         return { stdout: "global setup noise", stderr: "", exitCode: 0 };
       } });
 
       expect(result.items).toEqual([{ contractId: "UI-INVOICE-001", status: "passed", specRelativePath: "tests/logicgraph/UI-INVOICE-001.spec.ts" }]);
+      await expect(readFile(reportPath, "utf8")).rejects.toThrow("ENOENT");
     } finally {
       if (previous === undefined) {
         delete process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
