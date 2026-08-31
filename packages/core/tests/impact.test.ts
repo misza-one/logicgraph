@@ -30,6 +30,30 @@ describe("semantic impact (directional)", () => {
     expect(getImpact(buildRelationshipGraph([rule()], []), "missing").nodes).toEqual([]);
   });
 
+  it("finds start nodes by title, UI metadata, and field substring", () => {
+    const contract = {
+      ...uiContract(),
+      title: "Invoice action",
+      page: "BillingDashboard",
+      element: { ...uiContract().element, label: "Get PDF" },
+    };
+    const graph = buildRelationshipGraph([rule()], [contract]);
+
+    expect(getImpact(graph, "paid customer").startNode?.label).toBe("RULE-BILLING-001");
+    expect(getImpact(graph, "dashboard").startNode?.label).toBe("UI-INVOICE-001");
+    expect(getImpact(graph, "get pdf").startNode?.label).toBe("UI-INVOICE-001");
+    expect(getImpact(graph, "downloadUrl").startNode?.label).toBe("invoice.downloadUrl");
+  });
+
+  it("reports ambiguous fuzzy matches instead of choosing one", () => {
+    const graph = buildRelationshipGraph([rule(), { ...customerRule(), title: "Customer may download receipts" }], []);
+
+    const impact = getImpact(graph, "download");
+
+    expect(impact.startNode).toBeUndefined();
+    expect(impact.matches?.map((node) => node.label)).toEqual(["RULE-BILLING-001", "RULE-CUSTOMER-001", "invoice.downloadUrl"]);
+  });
+
   it("A: reaches rule and dependent UI contract from a field", () => {
     const impact = getImpact(buildRelationshipGraph([rule()], [uiContract()]), "invoice.status");
     const labels = impact.nodes.map((node) => node.label);

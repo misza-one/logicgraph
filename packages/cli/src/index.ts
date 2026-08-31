@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { contextCommand } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -7,12 +10,13 @@ import { initLogicGraph } from "./commands/init.js";
 import { validateRulesCommand } from "./commands/rules-validate.js";
 import { verifyRunCommand, verifyScaffoldCommand } from "./commands/verify.js";
 
+const packageJson = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../package.json"), "utf8")) as { version: string };
 const program = new Command();
 
 program
   .name("logicgraph")
   .description("Version-controlled application behavior for AI coding agents")
-  .version("0.1.0");
+  .version(packageJson.version);
 
 program
   .command("init")
@@ -38,14 +42,14 @@ rules
 program
   .command("impact")
   .description("Show impacted LogicGraph rules, fields, UI contracts, implementation, and tests")
-  .argument("<query>", "field, rule ID, or UI contract ID")
+  .argument("<query>", "field, rule ID, UI contract ID, or matching title/page text")
   .option("--code", "enrich technical impact via the CodeGraph CLI (semantic impact never depends on it)")
   .action(impactCommand);
 
 program
   .command("context")
-  .description("Print agent-readable Markdown context for a field, rule ID, or UI contract ID")
-  .argument("<query>", "field, rule ID, or UI contract ID")
+  .description("Print agent-readable Markdown context for a LogicGraph query")
+  .argument("<query>", "field, rule ID, UI contract ID, or matching title/page text")
   .action(contextCommand);
 
 program

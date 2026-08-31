@@ -17,7 +17,7 @@ export function formatImpact(result: ImpactResult): string {
   const lines = [`Impact for ${result.query}`, ""];
 
   if (!result.startNode) {
-    lines.push("No matching field, rule, or UI contract found.");
+    lines.push(...formatMiss(result));
     return lines.join("\n");
   }
 
@@ -81,6 +81,21 @@ function formatNode(node: ImpactResult["nodes"][number]): string[] {
 
 function formatSymbol(symbol: CodeIntelligenceSymbol): string {
   return `${symbol.qualifiedName ?? symbol.name}${symbol.signature ? symbol.signature : ""}`;
+}
+
+function formatMiss(result: ImpactResult): string[] {
+  if (!result.matches || result.matches.length === 0) {
+    return ["No matching field, rule, or UI contract found."];
+  }
+  return [
+    "Ambiguous query. Matching field, rule, or UI contract candidates:",
+    ...result.matches.map((node) => `- ${node.kind}: ${node.label}${node.title ? `: ${node.title}` : ""}`),
+    `Rerun with one exact candidate label, for example: logicgraph impact ${shellQuote(result.matches[0].label)}`,
+  ];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function label(kind: "field" | "rule" | "test" | "ui-contract"): string {

@@ -39,7 +39,7 @@ export function formatContext(context: LogicGraphContext): string {
   const lines = [`# LogicGraph Context: ${impact.query}`, ""];
 
   if (!impact.startNode) {
-    lines.push("No matching field, rule, or UI contract found.");
+    lines.push(...formatMiss(impact));
     return lines.join("\n");
   }
 
@@ -210,4 +210,19 @@ function formatUIContract(contract: UIContract): string {
 
 function inline(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function formatMiss(impact: ImpactResult): string[] {
+  if (!impact.matches || impact.matches.length === 0) {
+    return ["No matching field, rule, or UI contract found."];
+  }
+  return [
+    "Ambiguous query. Matching field, rule, or UI contract candidates:",
+    ...impact.matches.map((node) => `- ${node.kind}: ${node.label}${node.title ? `: ${node.title}` : ""}`),
+    `Rerun with one exact candidate label, for example: logicgraph context ${shellQuote(impact.matches[0].label)}`,
+  ];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }

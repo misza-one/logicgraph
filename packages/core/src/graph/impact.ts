@@ -13,6 +13,7 @@ export interface ImpactNode {
   kind: ImpactNodeKind;
   label: string;
   title?: string;
+  search?: string[];
   // Technical enrichment, present only when a code intelligence provider ran.
   // Distinct from semantic graph knowledge; never merges into edges above.
   codeIntel?: ImplementationResolution;
@@ -34,6 +35,7 @@ export interface ImpactResult {
   startNode?: ImpactNode;
   nodes: ImpactNode[];
   edges: ImpactEdge[];
+  matches?: ImpactNode[];
   codeIntel?: CodeIntelResultStatus;
 }
 
@@ -121,7 +123,13 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
 
   for (const contract of uiContracts) {
     const uiId = nodeId("ui-contract", contract.id);
-    addNode({ id: uiId, kind: "ui-contract", label: contract.id, title: contract.title });
+    addNode({
+      id: uiId,
+      kind: "ui-contract",
+      label: contract.id,
+      title: contract.title,
+      search: [contract.page, contract.element.label].filter((value): value is string => Boolean(value)),
+    });
 
     for (const ruleId of contract.requires) {
       const ruleNodeId = nodeId("rule", ruleId);
@@ -147,9 +155,11 @@ export function buildRelationshipGraph(rules: BusinessRule[], uiContracts: UICon
 // sibling rules. Broad undirected exploration belongs to a future
 // `related` command, not to impact.
 export function getImpact(graph: RelationshipGraph, query: string, options: { depth?: number } = {}): ImpactResult {
-  const startNode = graph.nodes.find((node) => node.label === query && node.kind === "rule") ?? graph.nodes.find((node) => node.label === query && node.kind === "ui-contract") ?? graph.nodes.find((node) => node.label === query && node.kind === "field");
+  const exact = findExactStartNode(graph, query);
+  const fuzzyMatches = exact ? [] : findFuzzyStartNodes(graph, query);
+  const startNode = exact ?? singleMatch(fuzzyMatches);
   if (!startNode) {
-    return { query, nodes: [], edges: [] };
+    return { query, nodes: [], edges: [], ...(fuzzyMatches.length > 1 ? { matches: fuzzyMatches } : {}) };
   }
 
   const propagate = new Map<string, string[]>();
@@ -206,6 +216,41 @@ export function getImpact(graph: RelationshipGraph, query: string, options: { de
     nodes: [...visited].flatMap((id) => byId.get(id) ?? []),
     edges: graph.edges.filter((edge) => visited.has(edge.from) && visited.has(edge.to)),
   };
+}
+
+function findExactStartNode(graph: RelationshipGraph, query: string): ImpactNode | undefined {
+  const kinds = ["rule", "ui-contract", "field"] as const;
+  for (const kind of kinds) {
+    const exact = graph.nodes.find((node) => node.kind === kind && node.label === query);
+    if (exact) {
+      return exact;
+    }
+  }
+}
+
+function findFuzzyStartNodes(graph: RelationshipGraph, query: string): ImpactNode[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return [];
+  }
+  const matches: ImpactNode[] = [];
+  const kinds = ["rule", "ui-contract", "field"] as const;
+  for (const kind of kinds) {
+    for (const node of graph.nodes) {
+      if (node.kind === kind && searchValues(node).some((value) => value.toLowerCase().includes(needle))) {
+        matches.push(node);
+      }
+    }
+  }
+  return matches;
+}
+
+function singleMatch(matches: ImpactNode[]): ImpactNode | undefined {
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function searchValues(node: ImpactNode): string[] {
+  return [node.label, node.title, ...(node.search ?? [])].filter((value): value is string => Boolean(value));
 }
 
 function addReferences(

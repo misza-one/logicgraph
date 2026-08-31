@@ -58,6 +58,25 @@ describe("formatContext", () => {
       "No matching field, rule, or UI contract found.",
     );
   });
+
+  it("prints ambiguous matches", () => {
+    const output = formatContext({
+      impact: {
+        query: "download",
+        nodes: [],
+        edges: [],
+        matches: [
+          { id: "field:account display name; rm", kind: "field", label: "account display name; rm" },
+          { id: "field:invoice.download", kind: "field", label: "invoice.download" },
+        ],
+      },
+      rules: [],
+      uiContracts: [],
+    });
+
+    expect(output).toContain("- field: account display name; rm\n- field: invoice.download");
+    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph context 'account display name; rm'");
+  });
 });
 
 function impact(): ImpactResult {
