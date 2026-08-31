@@ -139,7 +139,7 @@ export async function scaffoldUiVerification(options: { cwd?: string; contractId
     if (status === "generated") {
       await writeFile(item.specPath, item.spec, "utf8");
     }
-    const updatedContract = await addTestEvidence(item.contractPath, item.specRelativePath);
+    const updatedContract = await addTestEvidence(plan.cwd, item.contractPath, item.specRelativePath);
     items.push({
       contractId: item.contract.id,
       status,
@@ -313,14 +313,14 @@ export function playwrightCommand(cwd: string, platform: NodeJS.Platform = proce
   return join(cwd, "node_modules", ".bin", platform === "win32" ? "playwright.cmd" : "playwright");
 }
 
-async function addTestEvidence(contractPath: string, specRelativePath: string): Promise<boolean> {
+async function addTestEvidence(cwd: string, contractPath: string, specRelativePath: string): Promise<boolean> {
   const doc = YAML.parseDocument(await readFile(contractPath, "utf8"));
   const tests = doc.get("tests", true);
   if (isSeq(tests)) {
-    const expected = normalizeEvidencePath(specRelativePath);
+    const expected = normalizeEvidencePath(cwd, specRelativePath);
     if (tests.items.some((item) => {
       const value = scalarValue(item);
-      return typeof value === "string" && normalizeEvidencePath(value) === expected;
+      return typeof value === "string" && normalizeEvidencePath(cwd, value) === expected;
     })) {
       return false;
     }
@@ -437,8 +437,8 @@ function scalarValue(value: unknown): unknown {
   return typeof value === "object" && value !== null && "value" in value ? value.value : value;
 }
 
-function normalizeEvidencePath(path: string): string {
-  return posix.normalize(path.replace(/\\/g, "/")).replace(/^\.\//, "");
+function normalizeEvidencePath(cwd: string, path: string): string {
+  return posix.normalize(relativePath(cwd, resolve(cwd, path)).replace(/\\/g, "/")).replace(/^\.\//, "");
 }
 
 async function readTextIfExists(path: string): Promise<string | undefined> {

@@ -76,6 +76,18 @@ describe("verify commands", () => {
     expect(contract.match(/UI-INVOICE-001\.spec\.ts/g)).toHaveLength(1);
   });
 
+  it("does not duplicate absolute generated test evidence", async () => {
+    const cwd = await project(contractYaml());
+    const contractPath = join(cwd, ".logicgraph", "ui-contracts", "UI-INVOICE-001.yaml");
+    await writeFile(contractPath, `${contractYaml()}tests:\n  - ${join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts")}\n`, "utf8");
+
+    const result = await scaffoldUiVerification({ cwd });
+    const contract = await readFile(contractPath, "utf8");
+
+    expect(result.items).toMatchObject([{ contractId: "UI-INVOICE-001", updatedContract: false }]);
+    expect(contract.match(/UI-INVOICE-001\.spec\.ts/g)).toHaveLength(1);
+  });
+
   it("refuses to write through dangling spec symlinks outside the repository", async () => {
     const cwd = await project(contractYaml());
     await mkdir(join(cwd, "tests", "logicgraph"), { recursive: true });
