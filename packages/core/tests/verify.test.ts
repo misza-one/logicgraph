@@ -301,6 +301,13 @@ describe("UI verification core", () => {
     await writeFile(join(fileAncestor, "specs"), "not a directory", "utf8");
 
     await expect(buildUiVerificationPlan({ cwd: fileAncestor })).rejects.toThrow("verify.specDir specs is not a directory");
+
+    const nestedFinal = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: specs/output\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(nestedFinal, contractYaml());
+    await mkdir(join(nestedFinal, "specs"));
+    await writeFile(join(nestedFinal, "specs", "output"), "not a directory", "utf8");
+
+    await expect(buildUiVerificationPlan({ cwd: nestedFinal })).rejects.toThrow("verify.specDir specs/output is not a directory");
   });
 
   it("rejects specDir symlinks that resolve outside the repository", async () => {

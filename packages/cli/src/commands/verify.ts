@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import YAML, { isSeq } from "yaml";
+import YAML, { isAlias, isSeq } from "yaml";
 import {
   buildUiVerificationPlan,
   hasGeneratedSpecEvidence,
@@ -316,15 +316,20 @@ export function playwrightCommand(cwd: string, platform: NodeJS.Platform = proce
 async function addTestEvidence(cwd: string, contractPath: string, specRelativePath: string): Promise<boolean> {
   const doc = YAML.parseDocument(await readFile(contractPath, "utf8"));
   const tests = doc.get("tests", true);
-  if (isSeq(tests)) {
+  const resolvedTests = isAlias(tests) ? tests.resolve(doc) : tests;
+  if (isSeq(resolvedTests)) {
     const expected = normalizeEvidencePath(cwd, specRelativePath);
-    if (tests.items.some((item) => {
+    if (resolvedTests.items.some((item) => {
       const value = scalarValue(item);
       return typeof value === "string" && normalizeEvidencePath(cwd, value) === expected;
     })) {
       return false;
     }
-    tests.add(specRelativePath);
+    if (isSeq(tests)) {
+      tests.add(specRelativePath);
+    } else {
+      doc.set("tests", [...resolvedTests.items.map(scalarValue), specRelativePath]);
+    }
   } else {
     doc.set("tests", [specRelativePath]);
   }

@@ -155,7 +155,11 @@ async function repositoryWritePathError(cwd: string, targetPath: string): Promis
       return `${relativePath(cwd, current)} could not be inspected: ${errorMessage(error)}`;
     }
     if (stats) {
-      return repositoryPathError(cwd, current);
+      const error = await repositoryPathError(cwd, current);
+      if (error) {
+        return error;
+      }
+      break;
     }
     current = dirname(current);
   }
