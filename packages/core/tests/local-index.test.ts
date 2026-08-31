@@ -1,4 +1,4 @@
-import { lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -61,6 +61,18 @@ describe("local LogicGraph index", () => {
     expect(ignore.lastIndexOf("logicgraph.db")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db"));
   });
 
+  it("reapplies database ignore rules after a later wildcard negation", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", ".gitignore"), "logicgraph.db\nlogicgraph.db-shm\nlogicgraph.db-wal\n!logicgraph.db*\n", "utf8");
+
+    await rebuildProjectIndex({ cwd });
+
+    const ignore = (await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).split(/\r?\n/);
+    expect(ignore.lastIndexOf("logicgraph.db")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db*"));
+    expect(ignore.lastIndexOf("logicgraph.db-shm")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db*"));
+    expect(ignore.lastIndexOf("logicgraph.db-wal")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db*"));
+  });
+
   it("does not follow a symlinked ignore file", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-ignore-outside-"));
@@ -87,6 +99,25 @@ describe("local LogicGraph index", () => {
     await rebuildProjectIndex({ cwd });
 
     expect((await lstat(join(cwd, ".logicgraph", "logicgraph.db"))).isSymbolicLink()).toBe(false);
+    const external = new DatabaseSync(outsideDb);
+    try {
+      expect((external.prepare("SELECT id FROM nodes").get() as { id: string }).id).toBe("external");
+    } finally {
+      external.close();
+    }
+  });
+
+  it("does not overwrite a hard-linked local database", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-hardlink-outside-"));
+    const outsideDb = join(outside, "external.db");
+    const db = new DatabaseSync(outsideDb);
+    db.exec("CREATE TABLE nodes (id TEXT PRIMARY KEY); INSERT INTO nodes (id) VALUES ('external')");
+    db.close();
+    await link(outsideDb, join(cwd, ".logicgraph", "logicgraph.db"));
+
+    await rebuildProjectIndex({ cwd });
+
     const external = new DatabaseSync(outsideDb);
     try {
       expect((external.prepare("SELECT id FROM nodes").get() as { id: string }).id).toBe("external");

@@ -58,7 +58,7 @@ export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promi
   const root = join(cwd, ".logicgraph");
   await mkdir(root, { recursive: true });
   await ensureIndexGitignore(root);
-  await unlinkSymlinkedIndexFiles(dbPath);
+  await unlinkIndexFiles(dbPath);
 
   const db = openDatabase(dbPath);
   try {
@@ -315,7 +315,11 @@ async function ensureIndexGitignore(root: string): Promise<void> {
 }
 
 function hasIndexGitignorePatterns(existing: string): boolean {
-  const effective = new Map<string, boolean>();
+  return indexGitignorePatterns.every((path) => isIgnored(existing, path));
+}
+
+function isIgnored(existing: string, path: string): boolean {
+  let ignored = false;
   for (const rawLine of existing.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) {
@@ -323,16 +327,38 @@ function hasIndexGitignorePatterns(existing: string): boolean {
     }
     const negated = line.startsWith("!");
     const pattern = line.slice(negated ? 1 : 0).trim().replace(/^\//, "");
-    if (indexGitignorePatterns.includes(pattern)) {
-      effective.set(pattern, !negated);
+    if (matchesGitignorePattern(pattern, path)) {
+      ignored = !negated;
     }
   }
-  return indexGitignorePatterns.every((pattern) => effective.get(pattern) === true);
+  return ignored;
 }
 
-async function unlinkSymlinkedIndexFiles(dbPath: string): Promise<void> {
+function matchesGitignorePattern(pattern: string, path: string): boolean {
+  if (pattern.endsWith("/")) {
+    return false;
+  }
+  const regex = new RegExp(`^${pattern.split("*").map(escapeRegex).join(".*")}$`);
+  return regex.test(path);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function unlinkIndexFiles(dbPath: string): Promise<void> {
   for (const path of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
-    await unlinkIfSymlink(path);
+    await unlinkIfExists(path);
+  }
+}
+
+async function unlinkIfExists(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
   }
 }
 
