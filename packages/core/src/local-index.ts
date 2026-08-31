@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { loadLogicGraphConfig } from "./config/load.js";
+import { loadLogicGraphConfigWithSource } from "./config/load.js";
 import { buildRelationshipGraph, type RelationshipGraph } from "./graph/impact.js";
-import { validateProjectRules, type RuleValidationResult } from "./rules/validate.js";
-import { loadProjectUIContracts, type UIContractLoadResult } from "./ui-contracts/load.js";
-import { directoryExists, findYamlFiles, pathExists, relativePath, repositoryPathError } from "./yaml.js";
+import { validateRules, type RuleValidationResult } from "./rules/validate.js";
+import { loadUIContracts, type UIContractLoadResult } from "./ui-contracts/load.js";
+import { pathExists, relativePath } from "./yaml.js";
 
 export const logicGraphDatabaseName = "logicgraph.db";
 const indexSchemaVersion = "2";
@@ -32,6 +32,7 @@ export interface LogicGraphIndexStatus {
 interface SourceFile {
   kind: "config" | "rule" | "ui-contract";
   path: string;
+  source: string;
   id?: string;
   valid: boolean;
   errorCount: number;
@@ -146,49 +147,30 @@ function writeIndex(db: DatabaseSync, snapshot: Snapshot): void {
 }
 
 async function readSnapshot(cwd: string): Promise<Snapshot> {
-  const before = await sourceFingerprintBeforeParse(cwd);
-  const [rules, uiContracts] = await Promise.all([validateProjectRules({ cwd }), loadProjectUIContracts({ cwd })]);
+  const { config, source: configSource } = await loadLogicGraphConfigWithSource(cwd);
+  const [rules, uiContracts] = await Promise.all([
+    validateRules({ cwd, rulesDir: resolve(cwd, ".logicgraph", config.rules) }),
+    loadUIContracts({ cwd, uiContractsDir: resolve(cwd, ".logicgraph", config.uiContracts) }),
+  ]);
   if (!rules.ok) {
-    throw new Error("Cannot build index until rules validate.");
+    const first = rules.files.find((file) => file.errors[0]);
+    throw new Error(first ? `${first.relativePath}: ${first.errors[0]?.message}` : (rules.directoryError ?? "Cannot build index until rules validate."));
   }
   if (!uiContracts.ok) {
-    throw new Error("Cannot build index until UI contracts validate.");
+    const first = uiContracts.files.find((file) => file.errors[0]);
+    throw new Error(first ? `${first.relativePath}: ${first.errors[0]?.message}` : (uiContracts.directoryError ?? "Cannot build index until UI contracts validate."));
   }
 
   const graph = buildRelationshipGraph(rules.rules, uiContracts.contracts);
-  const sources = sourceFiles(cwd, rules, uiContracts);
-  const after = await fingerprint(cwd, sources.map((source) => source.path));
-  if (before !== after) {
-    throw new Error("LogicGraph YAML changed while building the index. Run logicgraph sync again.");
-  }
+  const sources = sourceFiles(cwd, configSource, rules, uiContracts);
   return {
     graph,
     sources,
-    fingerprint: after,
+    fingerprint: fingerprint(sources),
     ruleCount: rules.rules.length,
     uiContractCount: uiContracts.contracts.length,
     fieldCount: graph.nodes.filter((node) => node.kind === "field").length,
   };
-}
-
-async function sourceFingerprintBeforeParse(cwd: string): Promise<string> {
-  const config = await loadLogicGraphConfig(cwd);
-  const [rulePaths, uiContractPaths] = await Promise.all([
-    yamlPaths(cwd, resolve(cwd, ".logicgraph", config.rules)),
-    yamlPaths(cwd, resolve(cwd, ".logicgraph", config.uiContracts)),
-  ]);
-  return fingerprint(cwd, [".logicgraph/config.yaml", ...rulePaths, ...uiContractPaths]);
-}
-
-async function yamlPaths(cwd: string, dir: string): Promise<string[]> {
-  const sourceError = await repositoryPathError(cwd, dir);
-  if (sourceError) {
-    throw new Error(sourceError);
-  }
-  if (!(await directoryExists(dir))) {
-    return [];
-  }
-  return (await findYamlFiles(dir, cwd)).map((path) => relativePath(cwd, path));
 }
 
 function readStoredStatus(cwd: string, dbPath: string, configExists: boolean): StoredIndexStatus {
@@ -251,12 +233,13 @@ function emptyStatus(cwd: string, dbPath: string, configExists: boolean, error?:
   };
 }
 
-function sourceFiles(cwd: string, rules: RuleValidationResult, uiContracts: UIContractLoadResult): SourceFile[] {
+function sourceFiles(cwd: string, configSource: string, rules: RuleValidationResult, uiContracts: UIContractLoadResult): SourceFile[] {
   return [
-    { kind: "config" as const, path: ".logicgraph/config.yaml", id: "config", valid: true, errorCount: 0 },
+    { kind: "config" as const, path: ".logicgraph/config.yaml", source: configSource, id: "config", valid: true, errorCount: 0 },
     ...rules.files.map((file) => ({
       kind: "rule" as const,
       path: file.relativePath,
+      source: file.source!,
       id: file.id,
       valid: file.valid,
       errorCount: file.errors.length,
@@ -264,6 +247,7 @@ function sourceFiles(cwd: string, rules: RuleValidationResult, uiContracts: UICo
     ...uiContracts.files.map((file) => ({
       kind: "ui-contract" as const,
       path: file.relativePath,
+      source: file.source!,
       id: file.id,
       valid: file.valid,
       errorCount: file.errors.length,
@@ -271,17 +255,12 @@ function sourceFiles(cwd: string, rules: RuleValidationResult, uiContracts: UICo
   ].map((source) => ({ ...source, path: relativePath(cwd, resolve(cwd, source.path)) }));
 }
 
-async function fingerprint(cwd: string, paths: string[]): Promise<string> {
+function fingerprint(sources: SourceFile[]): string {
   const hash = createHash("sha256");
-  for (const path of [...paths].sort()) {
-    const absolutePath = resolve(cwd, path);
-    const sourceError = await repositoryPathError(cwd, absolutePath);
-    if (sourceError) {
-      throw new Error(sourceError);
-    }
-    hash.update(path);
+  for (const source of [...sources].sort((a, b) => a.path.localeCompare(b.path))) {
+    hash.update(source.path);
     hash.update("\0");
-    hash.update(await readFile(absolutePath));
+    hash.update(source.source);
     hash.update("\0");
   }
   return hash.digest("hex");
