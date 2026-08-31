@@ -176,6 +176,10 @@ async function sourceFingerprintBeforeParse(cwd: string): Promise<string> {
 }
 
 async function yamlPaths(cwd: string, dir: string): Promise<string[]> {
+  const sourceError = await repositoryPathError(cwd, dir);
+  if (sourceError) {
+    throw new Error(sourceError);
+  }
   if (!(await directoryExists(dir))) {
     return [];
   }

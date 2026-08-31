@@ -162,6 +162,14 @@ describe("local LogicGraph index", () => {
     await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("resolves outside repository");
   });
 
+  it("rejects configured source directories outside the repository before traversal", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-rules-outside-"));
+    await writeFile(join(cwd, ".logicgraph", "config.yaml"), `version: 1\nrules: ${outside}\nuiContracts: ui-contracts\njourneys: journeys\n`, "utf8");
+
+    await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("outside repository");
+  });
+
   it("reports authored definition counts when unresolved references create placeholders", async () => {
     const cwd = await project();
     await writeFile(join(cwd, ".logicgraph", "ui-contracts", "UI-MISSING-RULE.yaml"), uiContract("UI-MISSING-RULE", "RULE-MISSING-001"), "utf8");
