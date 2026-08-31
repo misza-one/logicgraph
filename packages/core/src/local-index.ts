@@ -311,6 +311,7 @@ async function ensureIndexGitignore(root: string): Promise<void> {
   if (hasIndexGitignorePatterns(existing)) {
     return;
   }
+  await unlinkIfExists(path);
   await writeFile(path, `${existing}${existing.endsWith("\n") ? "" : "\n"}\n${indexGitignoreBlock}`, "utf8");
 }
 
