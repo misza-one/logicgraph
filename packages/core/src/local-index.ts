@@ -60,11 +60,27 @@ export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promi
   if (rootError) {
     throw new Error(rootError);
   }
-  const snapshot = await readSnapshot(cwd);
+  let snapshot = await readSnapshot(cwd);
   await mkdir(root, { recursive: true });
   await ensureIndexGitignore(root);
   await unlinkIndexFiles(dbPath);
 
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const indexedAt = await writeSnapshot(dbPath, snapshot);
+    const latest = await readSnapshot(cwd);
+    if (latest.fingerprint === snapshot.fingerprint) {
+      return statusFromSnapshot(cwd, dbPath, snapshot, true, indexedAt);
+    }
+    if (attempt === 1) {
+      return statusFromSnapshot(cwd, dbPath, snapshot, false, indexedAt);
+    }
+    snapshot = latest;
+  }
+
+  throw new Error("Unable to build LogicGraph index.");
+}
+
+async function writeSnapshot(dbPath: string, snapshot: Snapshot): Promise<string | undefined> {
   const db = openDatabase(dbPath);
   try {
     writeIndex(db, snapshot);
@@ -72,7 +88,7 @@ export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promi
     db.close();
   }
 
-  return statusFromSnapshot(cwd, dbPath, snapshot, true, await fileIndexedAt(dbPath));
+  return fileIndexedAt(dbPath);
 }
 
 export async function getProjectIndexStatus(options: { cwd?: string } = {}): Promise<LogicGraphIndexStatus> {

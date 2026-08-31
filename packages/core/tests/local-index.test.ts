@@ -1,9 +1,15 @@
-import { chmod, link, lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { execFile } from "node:child_process";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { getProjectIndexStatus, rebuildProjectIndex } from "../src/index.js";
+
+const execFileAsync = promisify(execFile);
 
 describe("local LogicGraph index", () => {
   it("builds a SQLite index from LogicGraph YAML", async () => {
@@ -228,6 +234,33 @@ describe("local LogicGraph index", () => {
     await writeFile(join(cwd, ".logicgraph", "config.yaml"), `version: 1\nrules: ${outside}\nuiContracts: ui-contracts\njourneys: journeys\n`, "utf8");
 
     await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("outside repository");
+  });
+
+  it("rechecks source membership before reporting a rebuild fresh", async () => {
+    const cwd = await project();
+    const fifoPath = join(cwd, ".logicgraph", "rules", "block-fifo");
+    const blockedRulePath = join(cwd, ".logicgraph", "rules", "RULE-BLOCK-001.yaml");
+    try {
+      await execFileAsync("mkfifo", [fifoPath]);
+    } catch {
+      return;
+    }
+    await symlink(fifoPath, blockedRulePath);
+
+    const rebuild = rebuildProjectIndex({ cwd });
+    const writer = createWriteStream(fifoPath, { encoding: "utf8" });
+    await once(writer, "open");
+    await writeFile(join(cwd, ".logicgraph", "rules", "RULE-LATE-001.yaml"), rule("RULE-LATE-001", "Late rule", "late.field"), "utf8");
+    writer.end(rule("RULE-BLOCK-001", "Blocked rule", "blocked.field"));
+    await once(writer, "close");
+    await rm(blockedRulePath);
+    await rm(fifoPath);
+    await writeFile(blockedRulePath, rule("RULE-BLOCK-001", "Blocked rule", "blocked.field"), "utf8");
+
+    const status = await rebuild;
+
+    expect(status.upToDate).toBe(true);
+    expect(status.ruleCount).toBe(3);
   });
 
   it("reports authored definition counts when unresolved references create placeholders", async () => {
