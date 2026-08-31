@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { contextCommand } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { impactCommand } from "./commands/impact.js";
 import { initLogicGraph } from "./commands/init.js";
@@ -40,6 +41,12 @@ program
   .argument("<query>", "field, rule ID, or UI contract ID")
   .option("--code", "enrich technical impact via the CodeGraph CLI (semantic impact never depends on it)")
   .action(impactCommand);
+
+program
+  .command("context")
+  .description("Print agent-readable Markdown context for a field, rule ID, or UI contract ID")
+  .argument("<query>", "field, rule ID, or UI contract ID")
+  .action(contextCommand);
 
 program
   .command("doctor")

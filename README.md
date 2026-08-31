@@ -27,6 +27,7 @@ The current milestone intentionally keeps the foundation small:
 - `logicgraph rules validate`
 - `logicgraph doctor`
 - `logicgraph impact <field|rule|ui-contract>`
+- `logicgraph context <field|rule|ui-contract>`
 - unit tests
 
 ## Development
@@ -92,6 +93,12 @@ node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact invoice.downloadAll
 ```
 
 Semantic impact never depends on CodeGraph being installed or initialized; enrichment failures are reported as warnings while the semantic result stays complete. Enrichment queries the existing CodeGraph index — run `codegraph sync` explicitly when you want to refresh it, `logicgraph impact` will never index your repository behind your back.
+
+Print Markdown context for an AI coding agent before editing a behavior:
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" context RULE-BILLING-001
+```
 
 
 ## Example business rule
@@ -176,11 +183,13 @@ node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" verify run UI-INVOICE-001
 
 `verify scaffold` writes `tests/logicgraph/<UI-ID>.spec.ts` and records it in the contract's `tests:` evidence. `verify run` delegates to the application's own local Playwright binary via `node_modules/.bin/playwright test --reporter=json -- ...`; LogicGraph does not bundle Playwright.
 
+See `examples/invoice-download` for a small public rule-to-UI-contract example that CI validates with `doctor`, `rules validate`, `impact`, `context`, and scaffold idempotence.
+
 ## Planned next steps
 
-1. UI-TDD verification with a Playwright adapter (`logicgraph verify`)
-2. MCP server
-3. LLM-assisted rule discovery
+1. MCP server
+2. LLM-assisted rule discovery
+3. Optional `context --json` or `context --code` once a real consumer needs it
 
 (CodeGraph enrichment of `logicgraph impact --code` shipped earlier; see above.)
 

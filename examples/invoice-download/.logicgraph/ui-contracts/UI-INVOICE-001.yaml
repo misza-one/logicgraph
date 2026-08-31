@@ -1,0 +1,21 @@
+id: UI-INVOICE-001
+title: Download invoice button
+status: active
+page: InvoiceDetails
+element:
+  id: download_invoice_button
+  role: button
+  label: Download invoice
+trigger:
+  event: click
+requires:
+  - RULE-BILLING-001
+expected:
+  - type: text-visible
+    text: Download invoice
+implementation:
+  - src/billing/InvoiceDetails.tsx#DownloadInvoiceButton
+tests:
+  - tests/billing/invoice-download.spec.ts
+  - tests/logicgraph/UI-INVOICE-001.spec.ts
+scenarios: []
