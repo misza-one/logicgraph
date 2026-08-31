@@ -12,8 +12,10 @@ describe("formatContext", () => {
     expect(output).toContain("## UI Contracts\n- UI-INVOICE-001: Download invoice button");
     expect(output).toContain("  element: button \"Download\" (download_invoice_button)");
     expect(output).toContain("  requires: RULE-BILLING-001");
-    expect(output).toContain("## Implementation\n- src/InvoiceService.ts#canDownload");
+    expect(output).toContain("## Implementation");
+    expect(output).toContain("- src/InvoiceService.ts#canDownload");
     expect(output).toContain("## Tests\n- tests/invoice.test.ts");
+    expect(output).toContain("  scenarios: [{\"name\":\"paid invoice\"");
     expect(output).toContain("## Agent Notes");
   });
 
@@ -21,12 +23,34 @@ describe("formatContext", () => {
     const uiOnly = impact();
     uiOnly.query = "UI-INVOICE-001";
     uiOnly.startNode = { id: "ui-contract:UI-INVOICE-001", kind: "ui-contract", label: "UI-INVOICE-001" };
-    uiOnly.nodes = uiOnly.nodes.filter((node) => node.kind !== "rule");
+    uiOnly.nodes = [
+      { id: "ui-contract:UI-INVOICE-001", kind: "ui-contract", label: "UI-INVOICE-001", title: "Download invoice button" },
+      { id: "implementation:src/InvoiceButton.tsx", kind: "implementation", label: "src/InvoiceButton.tsx" },
+      { id: "test:tests/ui.spec.ts", kind: "test", label: "tests/ui.spec.ts" },
+    ];
 
     const output = formatContext({ impact: uiOnly, rules: [rule()], uiContracts: [uiContract()] });
 
     expect(output).toContain("## Business Rules\n- RULE-BILLING-001: Paid customer may download invoice");
+    expect(output).toContain("- src/InvoiceService.ts#canDownload");
+    expect(output).toContain("- tests/invoice.test.ts");
+    expect(output).toContain("- tests/ui.spec.ts");
     expect(output).toContain("  requires: RULE-BILLING-001");
+  });
+
+  it("includes producer rules when the query starts from a produced field", () => {
+    const fieldOnly: ImpactResult = {
+      query: "invoice.download",
+      startNode: { id: "field:invoice.download", kind: "field", label: "invoice.download" },
+      nodes: [{ id: "field:invoice.download", kind: "field", label: "invoice.download" }],
+      edges: [],
+    };
+
+    const output = formatContext({ impact: fieldOnly, rules: [rule()], uiContracts: [uiContract()] });
+
+    expect(output).toContain("## Business Rules\n- RULE-BILLING-001: Paid customer may download invoice");
+    expect(output).toContain("## UI Contracts\n- UI-INVOICE-001: Download invoice button");
+    expect(output).toContain("## Implementation\n- src/InvoiceButton.tsx\n- src/InvoiceService.ts#canDownload");
   });
 
   it("prints a miss", () => {
@@ -62,7 +86,7 @@ function rule(): BusinessRule {
     implementation: ["src/InvoiceService.ts#canDownload"],
     tests: ["tests/invoice.test.ts"],
     uiContracts: ["UI-INVOICE-001"],
-    scenarios: [],
+    scenarios: [{ name: "paid invoice", given: { paymentStatus: "PAID" }, then: [{ type: "allowed" }] }],
     createdAt: new Date("2026-08-22"),
     updatedAt: new Date("2026-08-22"),
   };
@@ -80,6 +104,6 @@ function uiContract(): UIContract {
     expected: [{ type: "text-visible", text: "Download" }],
     implementation: ["src/InvoiceButton.tsx"],
     tests: ["tests/invoice.test.ts"],
-    scenarios: [],
+    scenarios: [{ name: "download click", given: {}, when: { event: "click", target: "download_invoice_button" }, then: [{ type: "file-download" }] }],
   };
 }
