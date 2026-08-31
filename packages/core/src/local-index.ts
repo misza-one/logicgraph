@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { buildRelationshipGraph, type RelationshipGraph } from "./graph/impact.js";
@@ -8,6 +8,7 @@ import { loadProjectUIContracts, type UIContractLoadResult } from "./ui-contract
 import { pathExists, relativePath } from "./yaml.js";
 
 export const logicGraphDatabaseName = "logicgraph.db";
+const indexSchemaVersion = "2";
 const indexGitignoreBlock = "# LogicGraph local index/cache, not for committing.\nlogicgraph.db\nlogicgraph.db-shm\nlogicgraph.db-wal\n";
 
 export interface LogicGraphIndexStatus {
@@ -43,6 +44,11 @@ interface Snapshot {
   fieldCount: number;
 }
 
+interface StoredIndexStatus extends LogicGraphIndexStatus {
+  schemaVersion?: string;
+  sourceFingerprint?: string;
+}
+
 export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promise<LogicGraphIndexStatus> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dbPath = indexPath(cwd);
@@ -50,6 +56,7 @@ export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promi
   const root = join(cwd, ".logicgraph");
   await mkdir(root, { recursive: true });
   await ensureIndexGitignore(root);
+  await unlinkSymlinkedIndexFiles(dbPath);
 
   const db = openDatabase(dbPath);
   try {
@@ -76,7 +83,7 @@ export async function getProjectIndexStatus(options: { cwd?: string } = {}): Pro
 
   try {
     const snapshot = await readSnapshot(cwd);
-    return { ...stored, upToDate: storedFingerprint(dbPath) === snapshot.fingerprint };
+    return { ...stored, upToDate: stored.schemaVersion === indexSchemaVersion && stored.sourceFingerprint === snapshot.fingerprint };
   } catch (error) {
     return { ...stored, upToDate: false, error: errorMessage(error) };
   }
@@ -99,9 +106,15 @@ function writeIndex(db: DatabaseSync, snapshot: Snapshot): void {
     `);
 
     const insertMeta = db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
-    insertMeta.run("schemaVersion", "1");
+    insertMeta.run("schemaVersion", indexSchemaVersion);
     insertMeta.run("sourceFingerprint", snapshot.fingerprint);
     insertMeta.run("indexedAt", new Date().toISOString());
+    insertMeta.run("nodeCount", String(snapshot.graph.nodes.length));
+    insertMeta.run("edgeCount", String(snapshot.graph.edges.length));
+    insertMeta.run("sourceCount", String(snapshot.sources.length));
+    insertMeta.run("ruleCount", String(snapshot.ruleCount));
+    insertMeta.run("uiContractCount", String(snapshot.uiContractCount));
+    insertMeta.run("fieldCount", String(snapshot.fieldCount));
 
     const insertNode = db.prepare("INSERT INTO nodes (id, kind, label, title, search) VALUES (?, ?, ?, ?, ?)");
     for (const node of [...snapshot.graph.nodes].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -146,7 +159,7 @@ async function readSnapshot(cwd: string): Promise<Snapshot> {
   };
 }
 
-function readStoredStatus(cwd: string, dbPath: string, configExists: boolean): LogicGraphIndexStatus {
+function readStoredStatus(cwd: string, dbPath: string, configExists: boolean): StoredIndexStatus {
   const db = openDatabase(dbPath);
   try {
     return {
@@ -155,12 +168,14 @@ function readStoredStatus(cwd: string, dbPath: string, configExists: boolean): L
       configExists,
       initialized: true,
       upToDate: false,
-      nodeCount: count(db, "nodes"),
-      edgeCount: count(db, "edges"),
-      sourceCount: count(db, "sources"),
-      ruleCount: countWhere(db, "nodes", "kind = 'rule'"),
-      uiContractCount: countWhere(db, "nodes", "kind = 'ui-contract'"),
-      fieldCount: countWhere(db, "nodes", "kind = 'field'"),
+      nodeCount: metaNumber(db, "nodeCount") ?? count(db, "nodes"),
+      edgeCount: metaNumber(db, "edgeCount") ?? count(db, "edges"),
+      sourceCount: metaNumber(db, "sourceCount") ?? count(db, "sources"),
+      ruleCount: metaNumber(db, "ruleCount") ?? countWhere(db, "nodes", "kind = 'rule'"),
+      uiContractCount: metaNumber(db, "uiContractCount") ?? countWhere(db, "nodes", "kind = 'ui-contract'"),
+      fieldCount: metaNumber(db, "fieldCount") ?? countWhere(db, "nodes", "kind = 'field'"),
+      schemaVersion: meta(db, "schemaVersion"),
+      sourceFingerprint: meta(db, "sourceFingerprint"),
       indexedAt: meta(db, "indexedAt"),
     };
   } catch (error) {
@@ -235,15 +250,6 @@ async function fingerprint(cwd: string, paths: string[]): Promise<string> {
   return hash.digest("hex");
 }
 
-function storedFingerprint(dbPath: string): string | undefined {
-  const db = openDatabase(dbPath);
-  try {
-    return meta(db, "sourceFingerprint");
-  } finally {
-    db.close();
-  }
-}
-
 function count(db: DatabaseSync, table: string): number {
   return Number((db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count);
 }
@@ -254,6 +260,11 @@ function countWhere(db: DatabaseSync, table: string, where: string): number {
 
 function meta(db: DatabaseSync, key: string): string | undefined {
   return (db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as { value?: string } | undefined)?.value;
+}
+
+function metaNumber(db: DatabaseSync, key: string): number | undefined {
+  const value = meta(db, key);
+  return value === undefined ? undefined : Number(value);
 }
 
 async function fileIndexedAt(dbPath: string): Promise<string | undefined> {
@@ -279,6 +290,24 @@ async function ensureIndexGitignore(root: string): Promise<void> {
   await writeFile(path, `${existing}${existing.endsWith("\n") ? "" : "\n"}\n${indexGitignoreBlock}`, "utf8");
 }
 
+async function unlinkSymlinkedIndexFiles(dbPath: string): Promise<void> {
+  for (const path of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
+    await unlinkIfSymlink(path);
+  }
+}
+
+async function unlinkIfSymlink(path: string): Promise<void> {
+  try {
+    if ((await lstat(path)).isSymbolicLink()) {
+      await unlink(path);
+    }
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+  }
+}
+
 function openDatabase(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   db.exec("PRAGMA busy_timeout = 5000");
@@ -287,4 +316,8 @@ function openDatabase(dbPath: string): DatabaseSync {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT";
 }

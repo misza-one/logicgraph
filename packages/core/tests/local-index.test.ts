@@ -1,7 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { getProjectIndexStatus, rebuildProjectIndex } from "../src/index.js";
 
@@ -38,6 +38,48 @@ describe("local LogicGraph index", () => {
 
     expect(await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).toContain("logicgraph.db-wal");
   });
+
+  it("does not follow a symlinked local database", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));
+    const outsideDb = join(outside, "external.db");
+    const db = new DatabaseSync(outsideDb);
+    db.exec("CREATE TABLE nodes (id TEXT PRIMARY KEY); INSERT INTO nodes (id) VALUES ('external')");
+    db.close();
+    await symlink(outsideDb, join(cwd, ".logicgraph", "logicgraph.db"));
+
+    await rebuildProjectIndex({ cwd });
+
+    expect((await lstat(join(cwd, ".logicgraph", "logicgraph.db"))).isSymbolicLink()).toBe(false);
+    const external = new DatabaseSync(outsideDb);
+    try {
+      expect((external.prepare("SELECT id FROM nodes").get() as { id: string }).id).toBe("external");
+    } finally {
+      external.close();
+    }
+  });
+
+  it("reports authored definition counts when unresolved references create placeholders", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", "ui-contracts", "UI-MISSING-RULE.yaml"), uiContract("UI-MISSING-RULE", "RULE-MISSING-001"), "utf8");
+
+    const rebuilt = await rebuildProjectIndex({ cwd });
+    const status = await getProjectIndexStatus({ cwd });
+
+    expect(rebuilt.ruleCount).toBe(1);
+    expect(status.ruleCount).toBe(1);
+    expect(status.nodeCount).toBeGreaterThan(status.ruleCount + status.uiContractCount);
+  });
+
+  it("marks older index schema versions stale", async () => {
+    const cwd = await project();
+    await rebuildProjectIndex({ cwd });
+    const db = new DatabaseSync(join(cwd, ".logicgraph", "logicgraph.db"));
+    db.prepare("UPDATE meta SET value = ? WHERE key = ?").run("1", "schemaVersion");
+    db.close();
+
+    expect((await getProjectIndexStatus({ cwd })).upToDate).toBe(false);
+  });
 });
 
 async function project(): Promise<string> {
@@ -57,4 +99,8 @@ async function project(): Promise<string> {
 
 function rule(id: string, title: string, field: string): string {
   return `id: ${id}\ntitle: ${title}\ndomain: billing\ntype: decision\nstatus: active\nwhen:\n  field: user.authenticated\n  operator: eq\n  value: true\nthen:\n  - action: allow\n    field: ${field}\nuiContracts:\n  - UI-INVOICE-001\ncreatedAt: 2026-08-31\nupdatedAt: 2026-08-31\n`;
+}
+
+function uiContract(id: string, ruleId: string): string {
+  return `id: ${id}\ntitle: Missing rule button\nstatus: active\npage: InvoiceDetails\nelement:\n  id: missing_rule_button\n  role: button\n  label: Missing rule\ntrigger:\n  event: click\nrequires:\n  - ${ruleId}\n`;
 }

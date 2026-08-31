@@ -32,8 +32,10 @@ export function formatIndexStatus(status: LogicGraphIndexStatus): string {
     lines.push(`error: ${status.error}`);
   }
   lines.push("", ...formatCounts(status));
-  if (!status.initialized) {
-    lines.push("", `Run: logicgraph ${status.configExists ? "sync" : "init"}`);
+  if (!status.configExists) {
+    lines.push("", "Run: logicgraph init");
+  } else if (!status.initialized) {
+    lines.push("", "Run: logicgraph sync");
   } else if (!status.upToDate) {
     lines.push("", "Run: logicgraph sync");
   }

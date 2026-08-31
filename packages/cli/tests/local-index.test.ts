@@ -7,11 +7,15 @@ describe("formatIndexStatus", () => {
   });
 
   it("prints a sync hint for stale indexes", () => {
-    expect(formatIndexStatus(status({ initialized: true, upToDate: false }))).toContain("Run: logicgraph sync");
+    expect(formatIndexStatus(status({ configExists: true, initialized: true, upToDate: false }))).toContain("Run: logicgraph sync");
   });
 
   it("prints a sync hint when YAML exists but the database is missing", () => {
     expect(formatIndexStatus(status({ configExists: true, initialized: false }))).toContain("Run: logicgraph sync");
+  });
+
+  it("prints an init hint when the config is missing", () => {
+    expect(formatIndexStatus(status({ configExists: false, initialized: true, upToDate: false }))).toContain("Run: logicgraph init");
   });
 });
 
