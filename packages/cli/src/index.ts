@@ -4,6 +4,7 @@ import { doctorCommand } from "./commands/doctor.js";
 import { impactCommand } from "./commands/impact.js";
 import { initLogicGraph } from "./commands/init.js";
 import { validateRulesCommand } from "./commands/rules-validate.js";
+import { verifyRunCommand, verifyScaffoldCommand } from "./commands/verify.js";
 
 const program = new Command();
 
@@ -44,5 +45,19 @@ program
   .command("doctor")
   .description("Inspect LogicGraph project health")
   .action(doctorCommand);
+
+const verify = program.command("verify").description("Scaffold and run UI contract verification");
+
+verify
+  .command("scaffold")
+  .description("Generate Playwright specs for UI contracts and record them as tests evidence")
+  .argument("[contractId]", "UI contract ID")
+  .action(verifyScaffoldCommand);
+
+verify
+  .command("run")
+  .description("Run generated UI contract specs through the application's Playwright setup")
+  .argument("[contractId]", "UI contract ID")
+  .action(verifyRunCommand);
 
 await program.parseAsync(process.argv);
