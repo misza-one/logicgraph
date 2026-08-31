@@ -109,6 +109,9 @@ function planItem(cwd: string, verify: VerifyConfig, contract: UIContract, contr
 }
 
 async function validateSpecDir(cwd: string, specDir: string): Promise<void> {
+  if (specDir.includes("\0")) {
+    throw new Error("verify.specDir must not contain NUL bytes.");
+  }
   const normalized = normalizedSpecDir(specDir);
   if (normalized.length === 0) {
     throw new Error("verify.specDir must not normalize to an empty path.");

@@ -264,6 +264,13 @@ describe("UI verification core", () => {
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir must not normalize to an empty path");
   });
 
+  it("rejects specDir paths containing NUL bytes", async () => {
+    const cwd = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: \"bad\\0dir\"\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
+    await writeContract(cwd, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir must not contain NUL bytes");
+  });
+
   it("rejects specDir paths that are or contain regular files", async () => {
     const fileTarget = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: specs\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(fileTarget, contractYaml());
