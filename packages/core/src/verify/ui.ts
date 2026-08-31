@@ -142,34 +142,81 @@ async function repositoryWritePathError(cwd: string, targetPath: string): Promis
     return undefined;
   }
 
-  const targetDirectoryError = await existingDirectoryError(cwd, targetPath);
-  if (targetDirectoryError) {
-    return targetDirectoryError;
-  }
-
   let current = dirname(targetPath);
   while (current !== root && current !== dirname(current)) {
     const currentDirectoryError = await existingDirectoryError(cwd, current);
     if (currentDirectoryError) {
       return currentDirectoryError;
     }
-    if (await stat(current).catch(() => undefined)) {
+    let stats;
+    try {
+      stats = await statIfExists(current);
+    } catch (error) {
+      return `${relativePath(cwd, current)} could not be inspected: ${errorMessage(error)}`;
+    }
+    if (stats) {
       return repositoryPathError(cwd, current);
     }
     current = dirname(current);
+  }
+
+  const targetDirectoryError = await existingDirectoryError(cwd, targetPath);
+  if (targetDirectoryError) {
+    return targetDirectoryError;
   }
   return undefined;
 }
 
 async function existingDirectoryError(cwd: string, path: string): Promise<string | undefined> {
-  if (!(await lstat(path).catch(() => undefined))) {
+  let linkStats;
+  try {
+    linkStats = await lstatIfExists(path);
+  } catch (error) {
+    return `${relativePath(cwd, path)} could not be inspected: ${errorMessage(error)}`;
+  }
+  if (!linkStats) {
     return undefined;
   }
-  const stats = await stat(path).catch(() => undefined);
-  if (!stats) {
+  let stats;
+  try {
+    stats = await stat(path);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      return `${relativePath(cwd, path)} could not be inspected: ${errorMessage(error)}`;
+    }
     return `${relativePath(cwd, path)} is a dangling symlink`;
   }
   return stats.isDirectory() ? undefined : `${relativePath(cwd, path)} is not a directory`;
+}
+
+async function lstatIfExists(path: string) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function statIfExists(path: string) {
+  try {
+    return await stat(path);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function generateUiVerificationSpec(contract: UIContract, route: string, partialReasons = unknownVerificationReasons(contract)): string {
@@ -336,8 +383,8 @@ function conflictingLocatorReason(source: Record<string, unknown>): string | und
 function findByTargetHelper(): string {
   return [
     "async function findByTarget(page: Page, target: string): Promise<Locator> {",
-    "  const value = JSON.stringify(target);",
-    "  const byTestId = page.locator(`[data-testid=${value}]`);",
+    "  const value = cssString(target);",
+    "  const byTestId = page.locator(`[data-testid=\"${value}\"]`);",
     "  try {",
     "    await expect(byTestId).toBeAttached();",
     "    return byTestId;",
@@ -345,8 +392,17 @@ function findByTargetHelper(): string {
     "    if (error instanceof Error && error.message.includes(\"strict mode violation\")) {",
     "      throw error;",
     "    }",
-    "    return page.locator(`[id=${value}]`);",
+    "    return page.locator(`[id=\"${value}\"]`);",
     "  }",
+    "}",
+    "",
+    "function cssString(value: string): string {",
+    "  return value.replace(/[\\0-\\x1f\\x7f\"\\\\]/g, (char) => {",
+    "    if (char === \"\\\"\" || char === \"\\\\\") {",
+    "      return `\\\\${char}`;",
+    "    }",
+    "    return `\\\\${char.charCodeAt(0).toString(16)} `;",
+    "  });",
     "}",
   ].join("\n");
 }

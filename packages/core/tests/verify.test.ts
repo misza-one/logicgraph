@@ -95,13 +95,23 @@ describe("UI verification core", () => {
     expect(spec).toContain("await page.goto(new URL(route, baseUrl).toString());");
     expect(spec).toContain('const subject = page.getByRole("button" as never, { name: "Download" });');
     expect(spec).toContain("await subject.click();");
-    expect(spec).toContain("page.locator(`[data-testid=${value}]`);");
+    expect(spec).toContain('page.locator(`[data-testid="${value}"]`);');
+    expect(spec).toContain("function cssString(value: string): string");
     expect(spec).not.toContain("getByTestId");
     expect(spec).toContain("await expect(byTestId).toBeAttached();");
     expect(spec).toContain('await expectTextVisible(page, "Download");');
     expect(spec).toContain("await expect.poll(async () => {");
     expect(spec).toContain('await expect(page).toHaveURL(new RegExp("/invoices/"));');
     expect(spec).not.toContain("not machine-verifiable");
+  });
+
+  it("uses CSS string escaping for target selectors", () => {
+    const ui = { ...contract(), expected: [{ type: "element-enabled", target: "download\ninvoice" }] };
+    const spec = generateUiVerificationSpec(ui, "/reports");
+
+    expect(spec).toContain('await findByTarget(page, "download\\ninvoice");');
+    expect(spec).toContain("const value = cssString(target);");
+    expect(spec).toContain("return `\\\\${char.charCodeAt(0).toString(16)} `;");
   });
 
   it("falls back to target lookup for unsupported element roles", () => {
@@ -269,6 +279,13 @@ describe("UI verification core", () => {
     await writeContract(cwd, contractYaml());
 
     await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir must not contain NUL bytes");
+  });
+
+  it("rejects specDir paths with filesystem probe errors", async () => {
+    const cwd = await project(`version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: ${"a".repeat(5000)}\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n`);
+    await writeContract(cwd, contractYaml());
+
+    await expect(buildUiVerificationPlan({ cwd })).rejects.toThrow("verify.specDir");
   });
 
   it("rejects specDir paths that are or contain regular files", async () => {
