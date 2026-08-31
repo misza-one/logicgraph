@@ -73,6 +73,16 @@ describe("local LogicGraph index", () => {
     expect(ignore.lastIndexOf("logicgraph.db-wal")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db*"));
   });
 
+  it("reapplies database ignore rules after a later question-mark negation", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", ".gitignore"), "logicgraph.db\nlogicgraph.db-shm\nlogicgraph.db-wal\n!logicgraph.d?\n", "utf8");
+
+    await rebuildProjectIndex({ cwd });
+
+    const ignore = (await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).split(/\r?\n/);
+    expect(ignore.lastIndexOf("logicgraph.db")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.d?"));
+  });
+
   it("appends database ignore rules when existing patterns are indented", async () => {
     const cwd = await project();
     await writeFile(join(cwd, ".logicgraph", ".gitignore"), " logicgraph.db\n logicgraph.db-shm\n logicgraph.db-wal\n", "utf8");
@@ -146,6 +156,21 @@ describe("local LogicGraph index", () => {
     } finally {
       external.close();
     }
+  });
+
+  it("rejects symlinked local databases before reading status", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-status-outside-"));
+    const outsideDb = join(outside, "external.db");
+    const db = new DatabaseSync(outsideDb);
+    db.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    db.close();
+    await symlink(outsideDb, join(cwd, ".logicgraph", "logicgraph.db"));
+
+    const status = await getProjectIndexStatus({ cwd });
+
+    expect(status.initialized).toBe(true);
+    expect(status.error).toContain("regular local cache file");
   });
 
   it("does not overwrite a hard-linked local database", async () => {

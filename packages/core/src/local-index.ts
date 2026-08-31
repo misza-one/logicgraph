@@ -78,6 +78,11 @@ export async function getProjectIndexStatus(options: { cwd?: string } = {}): Pro
     return emptyStatus(cwd, dbPath, configExists, "index missing");
   }
 
+  const indexFileError = await unsafeIndexFileError(cwd, dbPath);
+  if (indexFileError) {
+    return { ...emptyStatus(cwd, dbPath, configExists, indexFileError), initialized: true };
+  }
+
   const stored = readStoredStatus(cwd, dbPath, configExists);
   if (stored.error) {
     return stored;
@@ -340,23 +345,17 @@ function isIgnored(existing: string, path: string): boolean {
     }
     const negated = line.startsWith("!");
     const pattern = line.slice(negated ? 1 : 0).replace(/^\//, "");
-    if (matchesGitignorePattern(pattern, path)) {
-      ignored = !negated;
+    if (!negated && pattern === path) {
+      ignored = true;
+    } else if (negated && couldMatchCacheFile(pattern, path)) {
+      ignored = false;
     }
   }
   return ignored;
 }
 
-function matchesGitignorePattern(pattern: string, path: string): boolean {
-  if (pattern.endsWith("/")) {
-    return false;
-  }
-  const regex = new RegExp(`^${pattern.split("*").map(escapeRegex).join(".*")}$`);
-  return regex.test(path);
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function couldMatchCacheFile(pattern: string, path: string): boolean {
+  return pattern === path || pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
 }
 
 async function unlinkIndexFiles(dbPath: string): Promise<void> {
@@ -385,6 +384,22 @@ async function unlinkIfSymlink(path: string): Promise<void> {
       throw error;
     }
   }
+}
+
+async function unsafeIndexFileError(cwd: string, dbPath: string): Promise<string | undefined> {
+  for (const path of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
+    try {
+      const stats = await lstat(path);
+      if (stats.isSymbolicLink() || stats.nlink > 1) {
+        return `${relativePath(cwd, path)} must be a regular local cache file`;
+      }
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        throw error;
+      }
+    }
+  }
+  return undefined;
 }
 
 function openDatabase(dbPath: string): DatabaseSync {
