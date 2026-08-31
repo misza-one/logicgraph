@@ -1,4 +1,4 @@
-import { link, lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -111,6 +111,21 @@ describe("local LogicGraph index", () => {
     expect(await readFile(outsideIgnore, "utf8")).toBe("keep me\n");
     expect(await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).toContain("keep me\n");
     expect(await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).toContain("logicgraph.db");
+  });
+
+  it("rejects unreadable ignore files instead of overwriting them", async () => {
+    const cwd = await project();
+    const ignorePath = join(cwd, ".logicgraph", ".gitignore");
+    await writeFile(ignorePath, "keep me\n", "utf8");
+    await chmod(ignorePath, 0o200);
+
+    try {
+      await expect(rebuildProjectIndex({ cwd })).rejects.toThrow();
+    } finally {
+      await chmod(ignorePath, 0o600);
+    }
+
+    expect(await readFile(ignorePath, "utf8")).toBe("keep me\n");
   });
 
   it("does not follow a symlinked local database", async () => {

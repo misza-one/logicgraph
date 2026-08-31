@@ -313,7 +313,10 @@ async function ensureIndexGitignore(root: string): Promise<void> {
   let existing = "";
   try {
     existing = await readFile(path, "utf8");
-  } catch {
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
     await writeFile(path, indexGitignoreBlock, "utf8");
     return;
   }
