@@ -219,6 +219,10 @@ function formatMiss(impact: ImpactResult): string[] {
   return [
     "Ambiguous query. Matching field, rule, or UI contract candidates:",
     ...impact.matches.map((node) => `- ${node.kind}: ${node.label}${node.title ? `: ${node.title}` : ""}`),
-    `Rerun with one exact candidate label, for example: logicgraph context ${impact.matches[0].label}`,
+    `Rerun with one exact candidate label, for example: logicgraph context ${shellQuote(impact.matches[0].label)}`,
   ];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }

@@ -7,7 +7,7 @@ All notable changes to LogicGraph are tracked here.
 ### Changed
 
 - `logicgraph impact` and `logicgraph context` keep exact query matches first, then fall back to case-insensitive substring matching over rule/UI IDs, titles, field labels, UI pages, and UI element labels.
-- `logicgraph impact` and `logicgraph context` report ambiguous fuzzy queries with candidate matches and a rerun hint instead of choosing the first match silently.
+- `logicgraph impact` and `logicgraph context` report ambiguous fuzzy queries with candidate matches and a shell-quoted rerun hint instead of choosing the first match silently.
 - `logicgraph --version` now reads the CLI package version instead of using a stale hardcoded value.
 - npm packages publish only runtime build output instead of TypeScript source, tests, and package-local config.
 

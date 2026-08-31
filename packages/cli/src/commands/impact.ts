@@ -90,8 +90,12 @@ function formatMiss(result: ImpactResult): string[] {
   return [
     "Ambiguous query. Matching field, rule, or UI contract candidates:",
     ...result.matches.map((node) => `- ${node.kind}: ${node.label}${node.title ? `: ${node.title}` : ""}`),
-    `Rerun with one exact candidate label, for example: logicgraph impact ${result.matches[0].label}`,
+    `Rerun with one exact candidate label, for example: logicgraph impact ${shellQuote(result.matches[0].label)}`,
   ];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function label(kind: "field" | "rule" | "test" | "ui-contract"): string {

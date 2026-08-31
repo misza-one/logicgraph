@@ -127,13 +127,13 @@ describe("formatImpact", () => {
       nodes: [],
       edges: [],
       matches: [
-        { id: "rule:RULE-BILLING-001", kind: "rule", label: "RULE-BILLING-001", title: "Paid customer may download invoice" },
+        { id: "field:account display name; rm", kind: "field", label: "account display name; rm" },
         { id: "field:invoice.downloadUrl", kind: "field", label: "invoice.downloadUrl" },
       ],
     });
 
-    expect(output).toContain("- rule: RULE-BILLING-001: Paid customer may download invoice\n- field: invoice.downloadUrl");
-    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph impact RULE-BILLING-001");
+    expect(output).toContain("- field: account display name; rm\n- field: invoice.downloadUrl");
+    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph impact 'account display name; rm'");
   });
 });
 

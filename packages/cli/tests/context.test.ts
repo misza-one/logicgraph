@@ -66,7 +66,7 @@ describe("formatContext", () => {
         nodes: [],
         edges: [],
         matches: [
-          { id: "rule:RULE-BILLING-001", kind: "rule", label: "RULE-BILLING-001", title: "Paid customer may download invoice" },
+          { id: "field:account display name; rm", kind: "field", label: "account display name; rm" },
           { id: "field:invoice.download", kind: "field", label: "invoice.download" },
         ],
       },
@@ -74,8 +74,8 @@ describe("formatContext", () => {
       uiContracts: [],
     });
 
-    expect(output).toContain("- rule: RULE-BILLING-001: Paid customer may download invoice\n- field: invoice.download");
-    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph context RULE-BILLING-001");
+    expect(output).toContain("- field: account display name; rm\n- field: invoice.download");
+    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph context 'account display name; rm'");
   });
 });
 
