@@ -26,6 +26,11 @@ program
   .action(async (options: { force?: boolean }) => {
     try {
       const status = await initLogicGraph({ force: options.force });
+      if (!status.upToDate) {
+        console.error("LogicGraph index is stale. Run: logicgraph sync");
+        process.exitCode = 1;
+        return;
+      }
       console.log("LogicGraph initialized in .logicgraph/");
       console.log(`Index built: ${status.nodeCount} nodes, ${status.edgeCount} edges`);
     } catch (error) {
