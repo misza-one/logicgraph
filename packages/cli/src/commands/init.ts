@@ -1,6 +1,7 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join } from "node:path";
+import { rebuildProjectIndex, type LogicGraphIndexStatus } from "@logicgraph/core";
 import YAML from "yaml";
 
 async function exists(path: string): Promise<boolean> {
@@ -17,7 +18,12 @@ export interface InitOptions {
   force?: boolean;
 }
 
-export async function initLogicGraph(options: InitOptions = {}): Promise<void> {
+export interface UninitOptions {
+  cwd?: string;
+  force?: boolean;
+}
+
+export async function initLogicGraph(options: InitOptions = {}): Promise<LogicGraphIndexStatus> {
   const cwd = options.cwd ?? process.cwd();
   const root = join(cwd, ".logicgraph");
   const configPath = join(root, "config.yaml");
@@ -38,4 +44,12 @@ export async function initLogicGraph(options: InitOptions = {}): Promise<void> {
   };
 
   await writeFile(configPath, YAML.stringify(config), "utf8");
+  return rebuildProjectIndex({ cwd });
+}
+
+export async function uninitLogicGraph(options: UninitOptions = {}): Promise<void> {
+  if (!options.force) {
+    throw new Error("Refusing to remove .logicgraph without --force because it may contain committed YAML.");
+  }
+  await rm(join(options.cwd ?? process.cwd(), ".logicgraph"), { recursive: true, force: true });
 }

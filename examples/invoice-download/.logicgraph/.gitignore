@@ -1,0 +1,4 @@
+# LogicGraph local index/cache, not for committing.
+logicgraph.db
+logicgraph.db-shm
+logicgraph.db-wal

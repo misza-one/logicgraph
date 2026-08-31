@@ -20,6 +20,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: node ../../packages/cli/dist/src/index.js sync
+        working-directory: examples/invoice-download
+      - run: node ../../packages/cli/dist/src/index.js status
+        working-directory: examples/invoice-download
       - run: node ../../packages/cli/dist/src/index.js doctor
         working-directory: examples/invoice-download
       - run: node ../../packages/cli/dist/src/index.js rules validate

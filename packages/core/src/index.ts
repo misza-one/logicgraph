@@ -5,6 +5,7 @@ export * from "./doctor.js";
 export * from "./graph/code-intelligence.js";
 export * from "./graph/codegraph.js";
 export * from "./graph/impact.js";
+export * from "./local-index.js";
 export * from "./rules/schema.js";
 export * from "./rules/validate.js";
 export * from "./ui-contracts/events.js";
