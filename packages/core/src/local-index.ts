@@ -55,8 +55,12 @@ interface StoredIndexStatus extends LogicGraphIndexStatus {
 export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promise<LogicGraphIndexStatus> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dbPath = indexPath(cwd);
-  const snapshot = await readSnapshot(cwd);
   const root = join(cwd, ".logicgraph");
+  const rootError = await unsafeIndexRootError(cwd, root);
+  if (rootError) {
+    throw new Error(rootError);
+  }
+  const snapshot = await readSnapshot(cwd);
   await mkdir(root, { recursive: true });
   await ensureIndexGitignore(root);
   await unlinkIndexFiles(dbPath);
@@ -74,6 +78,11 @@ export async function rebuildProjectIndex(options: { cwd?: string } = {}): Promi
 export async function getProjectIndexStatus(options: { cwd?: string } = {}): Promise<LogicGraphIndexStatus> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dbPath = indexPath(cwd);
+  const root = join(cwd, ".logicgraph");
+  const rootError = await unsafeIndexRootError(cwd, root);
+  if (rootError) {
+    return { ...emptyStatus(cwd, dbPath, false, rootError), initialized: true };
+  }
   const configExists = await pathExists(join(cwd, ".logicgraph", "config.yaml"));
   if (!(await pathExists(dbPath))) {
     return emptyStatus(cwd, dbPath, configExists, "index missing");
@@ -373,6 +382,14 @@ async function lstatIfExists(path: string) {
     }
     throw error;
   }
+}
+
+async function unsafeIndexRootError(cwd: string, root: string): Promise<string | undefined> {
+  const stats = await lstatIfExists(root);
+  if (stats && (stats.isSymbolicLink() || !stats.isDirectory())) {
+    return `${relativePath(cwd, root)} must be a regular local directory`;
+  }
+  return undefined;
 }
 
 async function unsafeIndexFileError(cwd: string, dbPath: string): Promise<string | undefined> {

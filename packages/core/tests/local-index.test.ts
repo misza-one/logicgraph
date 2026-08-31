@@ -180,6 +180,19 @@ describe("local LogicGraph index", () => {
     expect(status.error).toContain("regular local cache file");
   });
 
+  it("rejects symlinked LogicGraph roots before status or rebuild", async () => {
+    const outside = await project();
+    await rebuildProjectIndex({ cwd: outside });
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    await symlink(join(outside, ".logicgraph"), join(cwd, ".logicgraph"));
+
+    const status = await getProjectIndexStatus({ cwd });
+
+    expect(status.initialized).toBe(true);
+    expect(status.error).toContain("regular local directory");
+    await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("regular local directory");
+  });
+
   it("does not overwrite a hard-linked local database", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-hardlink-outside-"));
