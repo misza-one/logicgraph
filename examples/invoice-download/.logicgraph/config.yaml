@@ -1,0 +1,9 @@
+version: 1
+rules: rules
+uiContracts: ui-contracts
+journeys: journeys
+verify:
+  baseUrl: http://localhost:3443
+  specDir: tests/logicgraph
+  pages:
+    InvoiceDetails: /invoices/fixture-paid

@@ -20,3 +20,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: node ../../packages/cli/dist/src/index.js doctor
+        working-directory: examples/invoice-download
+      - run: node ../../packages/cli/dist/src/index.js rules validate
+        working-directory: examples/invoice-download
+      - run: node ../../packages/cli/dist/src/index.js impact RULE-BILLING-001
+        working-directory: examples/invoice-download
+      - run: node ../../packages/cli/dist/src/index.js context RULE-BILLING-001
+        working-directory: examples/invoice-download
+      - run: node ../../packages/cli/dist/src/index.js verify scaffold UI-INVOICE-001
+        working-directory: examples/invoice-download
+      - run: git diff --exit-code -- examples/invoice-download

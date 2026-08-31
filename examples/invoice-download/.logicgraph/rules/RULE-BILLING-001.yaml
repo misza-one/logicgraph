@@ -1,0 +1,28 @@
+id: RULE-BILLING-001
+title: Paid customer may download invoice
+domain: billing
+type: decision
+status: active
+when:
+  all:
+    - field: subscription.status
+      operator: eq
+      value: ACTIVE
+    - field: payment.status
+      operator: eq
+      value: PAID
+then:
+  - action: set
+    field: invoice.downloadAllowed
+    value: true
+rationale: Customers should only see invoice download affordances after payment is settled.
+implementation:
+  - src/billing/InvoiceService.ts#canDownload
+  - src/billing/InvoiceDetails.tsx#DownloadInvoiceButton
+tests:
+  - tests/billing/invoice-download.spec.ts
+uiContracts:
+  - UI-INVOICE-001
+scenarios: []
+createdAt: 2026-08-31
+updatedAt: 2026-08-31
