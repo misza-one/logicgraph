@@ -5,6 +5,9 @@
   "bin": {
     "logicgraph": "dist/src/index.js"
   },
+  "files": [
+    "dist/src"
+  ],
   "scripts": {
     "build": "pnpm --filter @logicgraph/core build && tsc -p tsconfig.json",
     "test": "pnpm --filter @logicgraph/core build && vitest run",

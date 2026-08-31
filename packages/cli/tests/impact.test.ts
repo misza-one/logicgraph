@@ -120,6 +120,18 @@ describe("formatImpact", () => {
   it("prints a miss", () => {
     expect(formatImpact({ query: "missing", nodes: [], edges: [] })).toContain("No matching field, rule, or UI contract found.");
   });
+
+  it("prints ambiguous matches", () => {
+    expect(formatImpact({
+      query: "download",
+      nodes: [],
+      edges: [],
+      matches: [
+        { id: "rule:RULE-BILLING-001", kind: "rule", label: "RULE-BILLING-001", title: "Paid customer may download invoice" },
+        { id: "field:invoice.downloadUrl", kind: "field", label: "invoice.downloadUrl" },
+      ],
+    })).toContain("Rerun with one exact candidate label, for example: logicgraph impact RULE-BILLING-001");
+  });
 });
 
 function result(): ImpactResult {

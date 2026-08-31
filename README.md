@@ -26,8 +26,8 @@ The current milestone intentionally keeps the foundation small:
 - `logicgraph init`
 - `logicgraph rules validate`
 - `logicgraph doctor`
-- `logicgraph impact <field|rule|ui-contract>`
-- `logicgraph context <field|rule|ui-contract>`
+- `logicgraph impact <query>`
+- `logicgraph context <query>`
 - unit tests
 
 ## Development
@@ -44,7 +44,13 @@ pnpm test
 pnpm build
 ```
 
-Build the CLI, then run it in another repository. Set the path to the LogicGraph checkout once:
+Use the published CLI in another repository:
+
+```bash
+npm exec --yes --package @logicgraph/cli -- logicgraph doctor
+```
+
+For local development, build the CLI, then run it in another repository. Set the path to the LogicGraph checkout once:
 
 ```bash
 LOGICGRAPH_DIR=/path/to/logicgraph
@@ -78,13 +84,16 @@ Check project health:
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" doctor
 ```
 
-Show everything downstream of a field, rule, or UI contract:
+Show everything downstream of a field, rule, UI contract, or matching title/page text:
 
 ```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact InvoiceDetails
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact invoice.downloadAllowed
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact RULE-BILLING-001
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" impact UI-INVOICE-001
 ```
+
+Exact IDs and field names win first. If there is no exact match, queries fall back to case-insensitive substring matching over rule titles, UI titles, field names, UI pages, and UI element labels. Broad fuzzy queries print candidate matches and a rerun hint instead of guessing.
 
 Impact is directional: changing a field affects the rules that read it, a rule change affects the fields it writes and the UI contracts that require it. Tests and implementation references are shown as evidence but never propagate impact further (two rules sharing a test do not affect each other). Add `--code` to enrich implementation references with technical symbol impact from the [CodeGraph](https://github.com/oraios/serena) CLI:
 
@@ -97,6 +106,7 @@ Semantic impact never depends on CodeGraph being installed or initialized; enric
 Print Markdown context for an AI coding agent before editing a behavior:
 
 ```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" context InvoiceDetails
 node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" context RULE-BILLING-001
 ```
 
