@@ -73,6 +73,18 @@ describe("local LogicGraph index", () => {
     expect(ignore.lastIndexOf("logicgraph.db-wal")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db*"));
   });
 
+  it("appends database ignore rules when existing patterns are indented", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", ".gitignore"), " logicgraph.db\n logicgraph.db-shm\n logicgraph.db-wal\n", "utf8");
+
+    await rebuildProjectIndex({ cwd });
+
+    const ignore = (await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).split(/\r?\n/);
+    expect(ignore).toContain("logicgraph.db");
+    expect(ignore).toContain("logicgraph.db-shm");
+    expect(ignore).toContain("logicgraph.db-wal");
+  });
+
   it("does not follow a symlinked ignore file", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-ignore-outside-"));
@@ -138,6 +150,16 @@ describe("local LogicGraph index", () => {
     } finally {
       external.close();
     }
+  });
+
+  it("rejects external YAML symlinks before fingerprinting", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-source-outside-"));
+    const outsideRule = join(outside, "RULE-EXTERNAL-001.yaml");
+    await writeFile(outsideRule, rule("RULE-EXTERNAL-001", "External rule", "external.field"), "utf8");
+    await symlink(outsideRule, join(cwd, ".logicgraph", "rules", "RULE-EXTERNAL-001.yaml"));
+
+    await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("resolves outside repository");
   });
 
   it("reports authored definition counts when unresolved references create placeholders", async () => {

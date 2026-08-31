@@ -6,7 +6,7 @@ import { loadLogicGraphConfig } from "./config/load.js";
 import { buildRelationshipGraph, type RelationshipGraph } from "./graph/impact.js";
 import { validateProjectRules, type RuleValidationResult } from "./rules/validate.js";
 import { loadProjectUIContracts, type UIContractLoadResult } from "./ui-contracts/load.js";
-import { directoryExists, findYamlFiles, pathExists, relativePath } from "./yaml.js";
+import { directoryExists, findYamlFiles, pathExists, relativePath, repositoryPathError } from "./yaml.js";
 
 export const logicGraphDatabaseName = "logicgraph.db";
 const indexSchemaVersion = "2";
@@ -265,9 +265,14 @@ function sourceFiles(cwd: string, rules: RuleValidationResult, uiContracts: UICo
 async function fingerprint(cwd: string, paths: string[]): Promise<string> {
   const hash = createHash("sha256");
   for (const path of [...paths].sort()) {
+    const absolutePath = resolve(cwd, path);
+    const sourceError = await repositoryPathError(cwd, absolutePath);
+    if (sourceError) {
+      throw new Error(sourceError);
+    }
     hash.update(path);
     hash.update("\0");
-    hash.update(await readFile(resolve(cwd, path)));
+    hash.update(await readFile(absolutePath));
     hash.update("\0");
   }
   return hash.digest("hex");
@@ -322,12 +327,12 @@ function hasIndexGitignorePatterns(existing: string): boolean {
 function isIgnored(existing: string, path: string): boolean {
   let ignored = false;
   for (const rawLine of existing.split(/\r?\n/)) {
-    const line = rawLine.trim();
+    const line = rawLine.trimEnd();
     if (!line || line.startsWith("#")) {
       continue;
     }
     const negated = line.startsWith("!");
-    const pattern = line.slice(negated ? 1 : 0).trim().replace(/^\//, "");
+    const pattern = line.slice(negated ? 1 : 0).replace(/^\//, "");
     if (matchesGitignorePattern(pattern, path)) {
       ignored = !negated;
     }
