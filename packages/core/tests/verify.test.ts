@@ -251,6 +251,7 @@ describe("UI verification core", () => {
     expect(plan.items).toMatchObject([{ status: "ready", specRelativePath: "./UI-INVOICE-001.spec.ts" }]);
     expect(hasGeneratedSpecEvidence({ ...contract(), tests: ["UI-INVOICE-001.spec.ts"] }, cwd, ".")).toBe(true);
     expect(hasGeneratedSpecEvidence({ ...contract(), tests: ["tests\\logicgraph\\UI-INVOICE-001.spec.ts"] }, cwd, "tests/logicgraph")).toBe(true);
+    expect(hasGeneratedSpecEvidence({ ...contract(), tests: [join(cwd, "tests", "logicgraph", "UI-INVOICE-001.spec.ts")] }, cwd, "tests/logicgraph")).toBe(true);
 
     const parent = await project("version: 1\nrules: rules\nuiContracts: ui-contracts\njourneys: journeys\nverify:\n  specDir: tests/..\n  pages:\n    InvoiceDetails: /invoices/fixture-paid\n");
     await writeContract(parent, contractYaml());

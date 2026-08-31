@@ -448,7 +448,7 @@ function escapeRegExp(value: string): string {
 
 export function hasGeneratedSpecEvidence(contract: UIContract, cwd: string, specDir: string): boolean {
   const expected = evidencePath(generatedSpecRelativePath(specDir, contract.id));
-  return contract.tests.some((test) => evidencePath(relativePath(cwd, join(cwd, test))) === expected || evidencePath(test) === expected);
+  return contract.tests.some((test) => evidencePath(relativePath(cwd, resolve(cwd, test))) === expected || evidencePath(test) === expected);
 }
 
 function evidencePath(path: string): string {
