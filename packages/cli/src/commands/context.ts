@@ -60,10 +60,23 @@ export function formatContext(context: LogicGraphContext): string {
 
 function formatRules(context: LogicGraphContext): string[] {
   const byId = new Map(context.rules.map((rule) => [rule.id, rule]));
-  return labels(context.impact, "rule").map((id) => {
+  return ruleLabels(context).map((id) => {
     const rule = byId.get(id);
     return rule ? formatRule(rule) : `- ${id}`;
   });
+}
+
+function ruleLabels(context: LogicGraphContext): string[] {
+  const ids = new Set(labels(context.impact, "rule"));
+  const impactedContracts = new Set(labels(context.impact, "ui-contract"));
+  for (const contract of context.uiContracts) {
+    if (impactedContracts.has(contract.id)) {
+      for (const ruleId of contract.requires) {
+        ids.add(ruleId);
+      }
+    }
+  }
+  return [...ids].sort((a, b) => a.localeCompare(b));
 }
 
 function formatUIContracts(context: LogicGraphContext): string[] {
@@ -108,6 +121,7 @@ function formatUIContract(contract: UIContract): string {
     `  page: ${contract.page}`,
     `  element: ${contract.element.role}${contract.element.label ? ` \"${contract.element.label}\"` : ""} (${contract.element.id})`,
     `  trigger: ${contract.trigger.event}`,
+    ...(contract.requires.length > 0 ? [`  requires: ${contract.requires.join(", ")}`] : []),
     ...(contract.expected.length > 0 ? [`  expected: ${inline(contract.expected)}`] : []),
   ].join("\n");
 }

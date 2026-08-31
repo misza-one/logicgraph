@@ -11,9 +11,22 @@ describe("formatContext", () => {
     expect(output).toContain("  when: {\"field\":\"invoice.status\",\"operator\":\"eq\",\"value\":\"paid\"}");
     expect(output).toContain("## UI Contracts\n- UI-INVOICE-001: Download invoice button");
     expect(output).toContain("  element: button \"Download\" (download_invoice_button)");
+    expect(output).toContain("  requires: RULE-BILLING-001");
     expect(output).toContain("## Implementation\n- src/InvoiceService.ts#canDownload");
     expect(output).toContain("## Tests\n- tests/invoice.test.ts");
     expect(output).toContain("## Agent Notes");
+  });
+
+  it("includes required rules when the query starts from a UI contract", () => {
+    const uiOnly = impact();
+    uiOnly.query = "UI-INVOICE-001";
+    uiOnly.startNode = { id: "ui-contract:UI-INVOICE-001", kind: "ui-contract", label: "UI-INVOICE-001" };
+    uiOnly.nodes = uiOnly.nodes.filter((node) => node.kind !== "rule");
+
+    const output = formatContext({ impact: uiOnly, rules: [rule()], uiContracts: [uiContract()] });
+
+    expect(output).toContain("## Business Rules\n- RULE-BILLING-001: Paid customer may download invoice");
+    expect(output).toContain("  requires: RULE-BILLING-001");
   });
 
   it("prints a miss", () => {
