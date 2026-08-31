@@ -31,7 +31,7 @@ describe("UI verification core", () => {
   });
 
   it("rejects unusable verify URLs", () => {
-    for (const baseUrl of ["localhost:3443", "/relative", "mailto:test@example.com"]) {
+    for (const baseUrl of ["localhost:3443", "/relative", "mailto:test@example.com", "http:foo", "https:foo"]) {
       expect(logicGraphConfigSchema.safeParse({
         version: 1,
         rules: "rules",
@@ -39,6 +39,18 @@ describe("UI verification core", () => {
         journeys: "journeys",
         verify: { baseUrl },
       }).success).toBe(false);
+    }
+
+    for (const baseUrl of ["http://localhost:3443", "https://localhost:3443"]) {
+      for (const route of ["http:foo", "https:foo", "app:invoice", "//example.com/invoice"]) {
+        expect(logicGraphConfigSchema.safeParse({
+          version: 1,
+          rules: "rules",
+          uiContracts: "ui-contracts",
+          journeys: "journeys",
+          verify: { baseUrl, pages: { InvoiceDetails: route } },
+        }).success).toBe(false);
+      }
     }
 
     expect(logicGraphConfigSchema.safeParse({

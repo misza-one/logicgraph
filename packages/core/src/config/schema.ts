@@ -1,12 +1,15 @@
 import { z } from "zod";
 
 export const verifyConfigSchema = z.object({
-  baseUrl: z.string().min(1).refine(isHttpBaseUrl, "verify.baseUrl must be an absolute http(s) URL").optional(),
+  baseUrl: z.string().min(1).refine(isAbsoluteHttpUrl, "verify.baseUrl must be an absolute http(s) URL").optional(),
   specDir: z.string().min(1).default("tests/logicgraph"),
   pages: z.record(z.string().min(1), z.string().min(1).refine(isNavigationRoute, "verify.pages routes must be relative or absolute http(s) URLs")).default({}),
 });
 
-function isHttpBaseUrl(value: string): boolean {
+function isAbsoluteHttpUrl(value: string): boolean {
+  if (!/^https?:\/\//i.test(value)) {
+    return false;
+  }
   try {
     const url = new URL(value);
     return ["http:", "https:"].includes(url.protocol) && Boolean(url.host);
@@ -16,9 +19,12 @@ function isHttpBaseUrl(value: string): boolean {
 }
 
 function isNavigationRoute(value: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    return isAbsoluteHttpUrl(value);
+  }
   try {
     const url = new URL(value, "http://logicgraph.local");
-    return url.origin === "http://logicgraph.local" || (["http:", "https:"].includes(url.protocol) && Boolean(url.host));
+    return url.origin === "http://logicgraph.local";
   } catch {
     return false;
   }
