@@ -8,6 +8,9 @@
   "files": [
     "dist/src"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "build": "pnpm --filter @logicgraph/core build && tsc -p tsconfig.json",
     "test": "pnpm --filter @logicgraph/core build && vitest run",

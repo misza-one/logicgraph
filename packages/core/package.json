@@ -7,6 +7,9 @@
   "files": [
     "dist/src"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

@@ -2,14 +2,16 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { loadLogicGraphConfig } from "./config/load.js";
 import { buildRelationshipGraph, type RelationshipGraph } from "./graph/impact.js";
 import { validateProjectRules, type RuleValidationResult } from "./rules/validate.js";
 import { loadProjectUIContracts, type UIContractLoadResult } from "./ui-contracts/load.js";
-import { pathExists, relativePath } from "./yaml.js";
+import { directoryExists, findYamlFiles, pathExists, relativePath } from "./yaml.js";
 
 export const logicGraphDatabaseName = "logicgraph.db";
 const indexSchemaVersion = "2";
-const indexGitignoreBlock = "# LogicGraph local index/cache, not for committing.\nlogicgraph.db\nlogicgraph.db-shm\nlogicgraph.db-wal\n";
+const indexGitignorePatterns = ["logicgraph.db", "logicgraph.db-shm", "logicgraph.db-wal"];
+const indexGitignoreBlock = `# LogicGraph local index/cache, not for committing.\n${indexGitignorePatterns.join("\n")}\n`;
 
 export interface LogicGraphIndexStatus {
   cwd: string;
@@ -139,6 +141,7 @@ function writeIndex(db: DatabaseSync, snapshot: Snapshot): void {
 }
 
 async function readSnapshot(cwd: string): Promise<Snapshot> {
+  const before = await sourceFingerprintBeforeParse(cwd);
   const [rules, uiContracts] = await Promise.all([validateProjectRules({ cwd }), loadProjectUIContracts({ cwd })]);
   if (!rules.ok) {
     throw new Error("Cannot build index until rules validate.");
@@ -149,14 +152,34 @@ async function readSnapshot(cwd: string): Promise<Snapshot> {
 
   const graph = buildRelationshipGraph(rules.rules, uiContracts.contracts);
   const sources = sourceFiles(cwd, rules, uiContracts);
+  const after = await fingerprint(cwd, sources.map((source) => source.path));
+  if (before !== after) {
+    throw new Error("LogicGraph YAML changed while building the index. Run logicgraph sync again.");
+  }
   return {
     graph,
     sources,
-    fingerprint: await fingerprint(cwd, sources.map((source) => source.path)),
+    fingerprint: after,
     ruleCount: rules.rules.length,
     uiContractCount: uiContracts.contracts.length,
     fieldCount: graph.nodes.filter((node) => node.kind === "field").length,
   };
+}
+
+async function sourceFingerprintBeforeParse(cwd: string): Promise<string> {
+  const config = await loadLogicGraphConfig(cwd);
+  const [rulePaths, uiContractPaths] = await Promise.all([
+    yamlPaths(cwd, resolve(cwd, ".logicgraph", config.rules)),
+    yamlPaths(cwd, resolve(cwd, ".logicgraph", config.uiContracts)),
+  ]);
+  return fingerprint(cwd, [".logicgraph/config.yaml", ...rulePaths, ...uiContractPaths]);
+}
+
+async function yamlPaths(cwd: string, dir: string): Promise<string[]> {
+  if (!(await directoryExists(dir))) {
+    return [];
+  }
+  return (await findYamlFiles(dir, cwd)).map((path) => relativePath(cwd, path));
 }
 
 function readStoredStatus(cwd: string, dbPath: string, configExists: boolean): StoredIndexStatus {
@@ -284,10 +307,21 @@ async function ensureIndexGitignore(root: string): Promise<void> {
     await writeFile(path, indexGitignoreBlock, "utf8");
     return;
   }
-  if (existing.includes("logicgraph.db")) {
+  if (hasIndexGitignorePatterns(existing)) {
     return;
   }
   await writeFile(path, `${existing}${existing.endsWith("\n") ? "" : "\n"}\n${indexGitignoreBlock}`, "utf8");
+}
+
+function hasIndexGitignorePatterns(existing: string): boolean {
+  const patterns = new Set(
+    existing
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && !line.startsWith("!"))
+      .map((line) => line.replace(/^\//, "")),
+  );
+  return indexGitignorePatterns.every((pattern) => patterns.has(pattern));
 }
 
 async function unlinkSymlinkedIndexFiles(dbPath: string): Promise<void> {

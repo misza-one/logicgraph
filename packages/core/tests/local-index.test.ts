@@ -39,6 +39,18 @@ describe("local LogicGraph index", () => {
     expect(await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).toContain("logicgraph.db-wal");
   });
 
+  it("appends database ignore rules when the existing file only mentions them", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", ".gitignore"), "# logicgraph.db\nlogicgraph.db-wal\n", "utf8");
+
+    await rebuildProjectIndex({ cwd });
+
+    const ignore = (await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).split(/\r?\n/);
+    expect(ignore).toContain("logicgraph.db");
+    expect(ignore).toContain("logicgraph.db-shm");
+    expect(ignore).toContain("logicgraph.db-wal");
+  });
+
   it("does not follow a symlinked local database", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));
