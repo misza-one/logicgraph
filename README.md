@@ -24,6 +24,10 @@ The current milestone intentionally keeps the foundation small:
 - nested `all`, `any`, and `not` conditions
 - `@logicgraph/cli`
 - `logicgraph init`
+- `logicgraph status`
+- `logicgraph sync`
+- `logicgraph index`
+- `logicgraph uninit --force`
 - `logicgraph rules validate`
 - `logicgraph doctor`
 - `logicgraph impact <query>`
@@ -34,7 +38,7 @@ The current milestone intentionally keeps the foundation small:
 
 Requirements:
 
-- Node.js 22.12+
+- Node.js 22.13+ on Node 22 LTS, or Node 23.4+
 - pnpm
 
 ```bash
@@ -64,10 +68,28 @@ This creates:
 
 ```text
 .logicgraph/
+├── .gitignore
 ├── config.yaml
+├── logicgraph.db
 ├── rules/
 ├── ui-contracts/
 └── journeys/
+```
+
+YAML files are the source of truth. `logicgraph.db` is a local, ignored SQLite cache that can be rebuilt from YAML.
+
+Check or rebuild the local index:
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" status
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" sync
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" index
+```
+
+Remove LogicGraph only with an explicit data-loss flag:
+
+```bash
+node "$LOGICGRAPH_DIR/packages/cli/dist/src/index.js" uninit --force
 ```
 
 Running `init` again will refuse to overwrite the existing config unless `--force` is supplied.

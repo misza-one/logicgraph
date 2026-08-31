@@ -4,8 +4,15 @@ All notable changes to LogicGraph are tracked here.
 
 ## Unreleased
 
+### Added
+
+- `logicgraph init` now creates a local `.logicgraph/logicgraph.db` index/cache, plus `.logicgraph/.gitignore` for database files.
+- `logicgraph status`, `logicgraph sync`, `logicgraph index`, and guarded `logicgraph uninit --force` commands for CodeGraph-like local index lifecycle.
+- The public invoice-download example now includes LogicGraph DB ignore rules and CI smoke-tests `sync` and `status`.
+
 ### Changed
 
+- Node.js `>=22.13 <23 || >=23.4` is now required because the local SQLite index uses `node:sqlite` without an experimental runtime flag.
 - `logicgraph impact` and `logicgraph context` keep exact query matches first, then fall back to case-insensitive substring matching over rule/UI IDs, titles, field labels, UI pages, and UI element labels.
 - `logicgraph impact` and `logicgraph context` report ambiguous fuzzy queries with candidate matches and a shell-quoted rerun hint instead of choosing the first match silently.
 - `logicgraph --version` now reads the CLI package version instead of using a stale hardcoded value.

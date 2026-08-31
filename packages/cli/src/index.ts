@@ -6,7 +6,8 @@ import { Command } from "commander";
 import { contextCommand } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { impactCommand } from "./commands/impact.js";
-import { initLogicGraph } from "./commands/init.js";
+import { initLogicGraph, uninitLogicGraph } from "./commands/init.js";
+import { indexCommand, statusCommand, syncCommand } from "./commands/local-index.js";
 import { validateRulesCommand } from "./commands/rules-validate.js";
 import { verifyRunCommand, verifyScaffoldCommand } from "./commands/verify.js";
 
@@ -24,8 +25,43 @@ program
   .option("--force", "overwrite existing LogicGraph config")
   .action(async (options: { force?: boolean }) => {
     try {
-      await initLogicGraph({ force: options.force });
+      const status = await initLogicGraph({ force: options.force });
+      if (!status.upToDate) {
+        console.error("LogicGraph index is stale. Run: logicgraph sync");
+        process.exitCode = 1;
+        return;
+      }
       console.log("LogicGraph initialized in .logicgraph/");
+      console.log(`Index built: ${status.nodeCount} nodes, ${status.edgeCount} edges`);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("status")
+  .description("Show LogicGraph local index status")
+  .action(statusCommand);
+
+program
+  .command("sync")
+  .description("Rebuild the local LogicGraph index from YAML")
+  .action(syncCommand);
+
+program
+  .command("index")
+  .description("Rebuild the full local LogicGraph index from scratch")
+  .action(indexCommand);
+
+program
+  .command("uninit")
+  .description("Remove LogicGraph from the current repository")
+  .option("--force", "delete .logicgraph and all contained YAML")
+  .action(async (options: { force?: boolean }) => {
+    try {
+      await uninitLogicGraph({ force: options.force });
+      console.log("LogicGraph removed from .logicgraph/");
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;

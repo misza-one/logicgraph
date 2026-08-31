@@ -10,7 +10,7 @@ LogicGraph is a pnpm TypeScript monorepo. Core domain logic lives in `packages/c
 - `pnpm build` — compile both packages to `dist`.
 - `node packages/cli/dist/src/index.js <command>` — run the built CLI locally, for example `doctor`, `rules validate`, or `impact RULE-BILLING-001`.
 
-Node.js `>=22.12` is required. CI runs install, typecheck, tests, then build.
+Node.js `>=22.13 <23 || >=23.4` is required. CI runs install, typecheck, tests, then build.
 
 ## Coding Style & Naming Conventions
 Use strict TypeScript with ES modules (`type: module`, `moduleResolution: NodeNext`). Keep domain behavior in `@logicgraph/core`; keep printing, exit codes, and Commander wiring in `@logicgraph/cli`. Prefer small exported functions over new abstractions. Use two-space indentation, double quotes, semicolons, and descriptive camelCase function names. Rule IDs and UI contract IDs should follow examples such as `RULE-BILLING-001` and `UI-INVOICE-001`.

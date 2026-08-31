@@ -1,7 +1,7 @@
 import { join, resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import { businessRuleSchema, type BusinessRule } from "./schema.js";
-import { directoryExists, findYamlFiles, parseYamlFile, relativePath, repositoryPathError } from "../yaml.js";
+import { directoryExists, findYamlFiles, parseYamlFileWithSource, relativePath, repositoryPathError } from "../yaml.js";
 
 export interface ValidationIssue {
   path: string;
@@ -14,6 +14,7 @@ export interface RuleValidationFile {
   id?: string;
   valid: boolean;
   errors: ValidationIssue[];
+  source?: string;
   rule?: BusinessRule;
 }
 
@@ -110,9 +111,9 @@ function validateRuleFile(cwd: string, filePath: string): Promise<RuleValidation
       if (sourceError) {
         return Promise.reject(new SourceError(sourceError));
       }
-      return parseYamlFile(filePath);
+      return parseYamlFileWithSource(filePath);
     })
-    .then((input) => {
+    .then(({ input, source }) => {
       const parsed = businessRuleSchema.safeParse(input);
       const id = readId(input);
 
@@ -123,6 +124,7 @@ function validateRuleFile(cwd: string, filePath: string): Promise<RuleValidation
           id,
           valid: false,
           errors: parsed.error.issues.map(toValidationIssue),
+          source,
         };
       }
 
@@ -132,6 +134,7 @@ function validateRuleFile(cwd: string, filePath: string): Promise<RuleValidation
         id: parsed.data.id,
         valid: true,
         errors: [],
+        source,
         rule: parsed.data,
       };
     })

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { loadLogicGraphConfig } from "../config/load.js";
 import { formatIssuePath, type DuplicateRuleId, type ValidationIssue } from "../rules/validate.js";
-import { directoryExists, findYamlFiles, parseYamlFile, relativePath, repositoryPathError } from "../yaml.js";
+import { directoryExists, findYamlFiles, parseYamlFileWithSource, relativePath, repositoryPathError } from "../yaml.js";
 import { uiContractSchema, type UIContract } from "./schema.js";
 
 export interface UIContractFile {
@@ -10,6 +10,7 @@ export interface UIContractFile {
   id?: string;
   valid: boolean;
   errors: ValidationIssue[];
+  source?: string;
   contract?: UIContract;
 }
 
@@ -75,9 +76,9 @@ function loadUIContractFile(cwd: string, filePath: string): Promise<UIContractFi
       if (sourceError) {
         return Promise.reject(new SourceError(sourceError));
       }
-      return parseYamlFile(filePath);
+      return parseYamlFileWithSource(filePath);
     })
-    .then((input) => {
+    .then(({ input, source }) => {
       const parsed = uiContractSchema.safeParse(input);
       const id = readId(input);
 
@@ -88,6 +89,7 @@ function loadUIContractFile(cwd: string, filePath: string): Promise<UIContractFi
           id,
           valid: false,
           errors: parsed.error.issues.map((issue) => ({ path: formatIssuePath(issue.path), message: issue.message })),
+          source,
         };
       }
 
@@ -97,6 +99,7 @@ function loadUIContractFile(cwd: string, filePath: string): Promise<UIContractFi
         id: parsed.data.id,
         valid: true,
         errors: [],
+        source,
         contract: parsed.data,
       };
     })

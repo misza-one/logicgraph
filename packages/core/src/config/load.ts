@@ -1,8 +1,17 @@
 import { join } from "node:path";
 import { logicGraphConfigSchema, type LogicGraphConfig } from "./schema.js";
-import { parseYamlFile, pathExists, relativePath, repositoryPathError } from "../yaml.js";
+import { parseYamlFileWithSource, pathExists, relativePath, repositoryPathError } from "../yaml.js";
+
+export interface LogicGraphConfigLoadResult {
+  config: LogicGraphConfig;
+  source: string;
+}
 
 export async function loadLogicGraphConfig(cwd = process.cwd()): Promise<LogicGraphConfig> {
+  return (await loadLogicGraphConfigWithSource(cwd)).config;
+}
+
+export async function loadLogicGraphConfigWithSource(cwd = process.cwd()): Promise<LogicGraphConfigLoadResult> {
   const configPath = join(cwd, ".logicgraph", "config.yaml");
   if (!(await pathExists(configPath))) {
     throw new Error(`${relativePath(cwd, configPath)} is missing`);
@@ -13,14 +22,15 @@ export async function loadLogicGraphConfig(cwd = process.cwd()): Promise<LogicGr
     throw new Error(sourceError);
   }
 
-  const parsed = logicGraphConfigSchema.safeParse(await parseYamlFile(configPath));
+  const { input, source } = await parseYamlFileWithSource(configPath);
+  const parsed = logicGraphConfigSchema.safeParse(input);
 
   if (!parsed.success) {
     const errors = parsed.error.issues.map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`).join("\n");
     throw new Error(`${relativePath(cwd, configPath)} is invalid\n${errors}`);
   }
 
-  return parsed.data;
+  return { config: parsed.data, source };
 }
 
 function formatIssuePath(path: readonly PropertyKey[]): string {

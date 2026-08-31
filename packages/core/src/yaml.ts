@@ -69,7 +69,12 @@ export async function findYamlFiles(dir: string, cwd?: string, seen = new Set<st
 }
 
 export async function parseYamlFile(path: string): Promise<unknown> {
-  return YAML.parse(await readFile(path, "utf8"));
+  return (await parseYamlFileWithSource(path)).input;
+}
+
+export async function parseYamlFileWithSource(path: string): Promise<{ input: unknown; source: string }> {
+  const source = await readFile(path, "utf8");
+  return { input: YAML.parse(source), source };
 }
 
 export function relativePath(from: string, to: string): string {
