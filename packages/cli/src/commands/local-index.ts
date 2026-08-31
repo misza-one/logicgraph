@@ -42,8 +42,12 @@ export function formatIndexStatus(status: LogicGraphIndexStatus): string {
   return lines.join("\n").trimEnd();
 }
 
-function formatRebuildResult(title: string, status: LogicGraphIndexStatus): string {
-  return [title, "", ...formatCounts(status)].join("\n").trimEnd();
+export function formatRebuildResult(title: string, status: LogicGraphIndexStatus): string {
+  const lines = [title, "", ...formatCounts(status)];
+  if (!status.upToDate) {
+    lines.push("", "Run: logicgraph sync");
+  }
+  return lines.join("\n").trimEnd();
 }
 
 function formatCounts(status: LogicGraphIndexStatus): string[] {
@@ -60,7 +64,11 @@ function formatCounts(status: LogicGraphIndexStatus): string[] {
 
 async function rebuildCommand(title: string): Promise<void> {
   try {
-    console.log(formatRebuildResult(title, await rebuildProjectIndex()));
+    const status = await rebuildProjectIndex();
+    console.log(formatRebuildResult(status.upToDate ? title : "LogicGraph index is stale", status));
+    if (!status.upToDate) {
+      process.exitCode = 1;
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

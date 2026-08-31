@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatIndexStatus } from "../src/commands/local-index.js";
+import { formatIndexStatus, formatRebuildResult } from "../src/commands/local-index.js";
 
 describe("formatIndexStatus", () => {
   it("prints an up-to-date index", () => {
@@ -16,6 +16,12 @@ describe("formatIndexStatus", () => {
 
   it("prints an init hint when the config is missing", () => {
     expect(formatIndexStatus(status({ configExists: false, initialized: true, upToDate: false }))).toContain("Run: logicgraph init");
+  });
+});
+
+describe("formatRebuildResult", () => {
+  it("prints a sync hint for stale rebuild results", () => {
+    expect(formatRebuildResult("LogicGraph index is stale", status({ configExists: true, initialized: true, upToDate: false }))).toContain("Run: logicgraph sync");
   });
 });
 
