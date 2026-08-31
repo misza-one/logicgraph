@@ -122,7 +122,7 @@ describe("formatImpact", () => {
   });
 
   it("prints ambiguous matches", () => {
-    expect(formatImpact({
+    const output = formatImpact({
       query: "download",
       nodes: [],
       edges: [],
@@ -130,7 +130,10 @@ describe("formatImpact", () => {
         { id: "rule:RULE-BILLING-001", kind: "rule", label: "RULE-BILLING-001", title: "Paid customer may download invoice" },
         { id: "field:invoice.downloadUrl", kind: "field", label: "invoice.downloadUrl" },
       ],
-    })).toContain("Rerun with one exact candidate label, for example: logicgraph impact RULE-BILLING-001");
+    });
+
+    expect(output).toContain("- rule: RULE-BILLING-001: Paid customer may download invoice\n- field: invoice.downloadUrl");
+    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph impact RULE-BILLING-001");
   });
 });
 

@@ -60,7 +60,7 @@ describe("formatContext", () => {
   });
 
   it("prints ambiguous matches", () => {
-    expect(formatContext({
+    const output = formatContext({
       impact: {
         query: "download",
         nodes: [],
@@ -72,7 +72,10 @@ describe("formatContext", () => {
       },
       rules: [],
       uiContracts: [],
-    })).toContain("Rerun with one exact candidate label, for example: logicgraph context RULE-BILLING-001");
+    });
+
+    expect(output).toContain("- rule: RULE-BILLING-001: Paid customer may download invoice\n- field: invoice.download");
+    expect(output).toContain("Rerun with one exact candidate label, for example: logicgraph context RULE-BILLING-001");
   });
 });
 
