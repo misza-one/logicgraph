@@ -174,7 +174,14 @@ export async function runUiVerification(options: { cwd?: string; contractId?: st
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `missing tests[] evidence for ${item.specRelativePath}` });
       continue;
     }
-    if (!(await exists(item.specPath))) {
+    let specExists;
+    try {
+      specExists = await exists(item.specPath);
+    } catch (error) {
+      items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `generated spec ${relativePath(plan.cwd, item.specPath)} could not be inspected: ${errorMessage(error)}` });
+      continue;
+    }
+    if (!specExists) {
       items.push({ contractId: item.contract.id, status: "failed", specRelativePath: item.specRelativePath, reason: `missing generated spec ${item.specRelativePath}` });
       continue;
     }
@@ -361,7 +368,10 @@ async function specWritePathError(cwd: string, path: string): Promise<string | u
     if (!isInside(realRoot, await realpath(target))) {
       return `${relativePath(cwd, target)} resolves outside repository`;
     }
-  } catch {
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      return `${relativePath(cwd, target)} could not be inspected: ${errorMessage(error)}`;
+    }
     // Missing files are normal for scaffold; parent symlinks are validated in core.
   }
 
@@ -369,7 +379,12 @@ async function specWritePathError(cwd: string, path: string): Promise<string | u
 }
 
 async function existingSpecFileError(cwd: string, path: string): Promise<string | undefined> {
-  const stats = await lstat(path).catch(() => undefined);
+  let stats;
+  try {
+    stats = await lstat(path);
+  } catch (error) {
+    return isMissingPathError(error) ? undefined : `${relativePath(cwd, path)} could not be inspected: ${errorMessage(error)}`;
+  }
   return stats && !stats.isFile() ? `${relativePath(cwd, path)} is not a file` : undefined;
 }
 
@@ -432,9 +447,20 @@ async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
     return true;
-  } catch {
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
     return false;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 interface PlaywrightReport {

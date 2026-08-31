@@ -101,6 +101,18 @@ describe("verify commands", () => {
     expect(run.items).toMatchObject([{ contractId: "UI-INVOICE-001", status: "failed", reason: "generated spec tests/logicgraph/UI-INVOICE-001.spec.ts is not a file" }]);
   });
 
+  it("reports generated spec target inspection errors", async () => {
+    const longId = `UI-${"A".repeat(5000)}`;
+    const cwd = await project(contractYaml().replace("id: UI-INVOICE-001", `id: ${longId}`));
+
+    const result = await scaffoldUiVerification({ cwd });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ contractId: longId, status: "failed", updatedContract: false });
+    expect(result.items[0].reason).toContain("refusing to write generated spec:");
+    expect(result.items[0].reason).toContain("could not be inspected");
+  });
+
   it("keeps scaffold and run stable when cwd is a symlink", async () => {
     const realCwd = await project(contractYaml());
     const symlinkCwd = await mkdtemp(join(tmpdir(), "logicgraph-linked-cwd-parent-"));
