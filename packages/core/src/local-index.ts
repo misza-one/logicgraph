@@ -294,6 +294,10 @@ function indexPath(cwd: string): string {
 async function ensureIndexGitignore(root: string): Promise<void> {
   const path = join(root, ".gitignore");
   await unlinkIfSymlink(path);
+  const stats = await lstatIfExists(path);
+  if (stats && !stats.isFile()) {
+    throw new Error(`${relativePath(root, path)} must be a regular file`);
+  }
   let existing = "";
   try {
     existing = await readFile(path, "utf8");
@@ -354,14 +358,20 @@ async function unlinkIfExists(path: string): Promise<void> {
 }
 
 async function unlinkIfSymlink(path: string): Promise<void> {
+  const stats = await lstatIfExists(path);
+  if (stats?.isSymbolicLink()) {
+    await unlink(path);
+  }
+}
+
+async function lstatIfExists(path: string) {
   try {
-    if ((await lstat(path)).isSymbolicLink()) {
-      await unlink(path);
-    }
+    return await lstat(path);
   } catch (error) {
-    if (!isMissingPathError(error)) {
-      throw error;
+    if (isMissingPathError(error)) {
+      return undefined;
     }
+    throw error;
   }
 }
 

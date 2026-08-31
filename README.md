@@ -38,7 +38,7 @@ The current milestone intentionally keeps the foundation small:
 
 Requirements:
 
-- Node.js 22.13+
+- Node.js 22.13+ on Node 22 LTS, or Node 23.4+
 - pnpm
 
 ```bash

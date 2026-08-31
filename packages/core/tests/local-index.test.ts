@@ -138,6 +138,13 @@ describe("local LogicGraph index", () => {
     expect(await readFile(ignorePath, "utf8")).toBe("keep me\n");
   });
 
+  it("rejects non-regular ignore files before reading them", async () => {
+    const cwd = await project();
+    await mkdir(join(cwd, ".logicgraph", ".gitignore"));
+
+    await expect(rebuildProjectIndex({ cwd })).rejects.toThrow("regular file");
+  });
+
   it("does not follow a symlinked local database", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));

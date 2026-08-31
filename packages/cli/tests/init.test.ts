@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -26,6 +26,30 @@ describe("initLogicGraph", () => {
     await initLogicGraph({ cwd });
 
     await expect(initLogicGraph({ cwd })).rejects.toThrow("already initialized");
+  });
+
+  it("does not follow symlinked config destinations", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-config-outside-"));
+    const outsideConfig = join(outside, "config.yaml");
+    await mkdir(join(cwd, ".logicgraph"));
+    await symlink(outsideConfig, join(cwd, ".logicgraph", "config.yaml"));
+
+    await expect(initLogicGraph({ cwd })).rejects.toThrow("already initialized");
+    await expect(stat(outsideConfig)).rejects.toThrow();
+
+    await initLogicGraph({ cwd, force: true });
+
+    await expect(stat(outsideConfig)).rejects.toThrow();
+    expect(await readFile(join(cwd, ".logicgraph", "config.yaml"), "utf8")).toContain("version: 1");
+  });
+
+  it("refuses symlinked LogicGraph roots", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "logicgraph-"));
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-root-outside-"));
+    await symlink(outside, join(cwd, ".logicgraph"));
+
+    await expect(initLogicGraph({ cwd })).rejects.toThrow("symlinked .logicgraph");
   });
 
   it("requires force before removing .logicgraph", async () => {
