@@ -300,6 +300,7 @@ function indexPath(cwd: string): string {
 
 async function ensureIndexGitignore(root: string): Promise<void> {
   const path = join(root, ".gitignore");
+  await unlinkIfSymlink(path);
   let existing = "";
   try {
     existing = await readFile(path, "utf8");
@@ -314,14 +315,19 @@ async function ensureIndexGitignore(root: string): Promise<void> {
 }
 
 function hasIndexGitignorePatterns(existing: string): boolean {
-  const patterns = new Set(
-    existing
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#") && !line.startsWith("!"))
-      .map((line) => line.replace(/^\//, "")),
-  );
-  return indexGitignorePatterns.every((pattern) => patterns.has(pattern));
+  const effective = new Map<string, boolean>();
+  for (const rawLine of existing.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const negated = line.startsWith("!");
+    const pattern = line.slice(negated ? 1 : 0).trim().replace(/^\//, "");
+    if (indexGitignorePatterns.includes(pattern)) {
+      effective.set(pattern, !negated);
+    }
+  }
+  return indexGitignorePatterns.every((pattern) => effective.get(pattern) === true);
 }
 
 async function unlinkSymlinkedIndexFiles(dbPath: string): Promise<void> {

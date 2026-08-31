@@ -51,6 +51,30 @@ describe("local LogicGraph index", () => {
     expect(ignore).toContain("logicgraph.db-wal");
   });
 
+  it("reapplies database ignore rules after a later negation", async () => {
+    const cwd = await project();
+    await writeFile(join(cwd, ".logicgraph", ".gitignore"), "logicgraph.db\nlogicgraph.db-shm\nlogicgraph.db-wal\n!logicgraph.db\n", "utf8");
+
+    await rebuildProjectIndex({ cwd });
+
+    const ignore = (await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).split(/\r?\n/);
+    expect(ignore.lastIndexOf("logicgraph.db")).toBeGreaterThan(ignore.lastIndexOf("!logicgraph.db"));
+  });
+
+  it("does not follow a symlinked ignore file", async () => {
+    const cwd = await project();
+    const outside = await mkdtemp(join(tmpdir(), "logicgraph-ignore-outside-"));
+    const outsideIgnore = join(outside, "ignore");
+    await writeFile(outsideIgnore, "keep me\n", "utf8");
+    await symlink(outsideIgnore, join(cwd, ".logicgraph", ".gitignore"));
+
+    await rebuildProjectIndex({ cwd });
+
+    expect((await lstat(join(cwd, ".logicgraph", ".gitignore"))).isSymbolicLink()).toBe(false);
+    expect(await readFile(outsideIgnore, "utf8")).toBe("keep me\n");
+    expect(await readFile(join(cwd, ".logicgraph", ".gitignore"), "utf8")).toContain("logicgraph.db");
+  });
+
   it("does not follow a symlinked local database", async () => {
     const cwd = await project();
     const outside = await mkdtemp(join(tmpdir(), "logicgraph-outside-"));
