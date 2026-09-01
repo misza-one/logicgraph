@@ -7,7 +7,7 @@ import { contextCommand } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { impactCommand } from "./commands/impact.js";
 import { initLogicGraph, uninitLogicGraph } from "./commands/init.js";
-import { indexCommand, statusCommand, syncCommand } from "./commands/local-index.js";
+import { formatRebuildResult, indexCommand, statusCommand, syncCommand } from "./commands/local-index.js";
 import { validateRulesCommand } from "./commands/rules-validate.js";
 import { verifyRunCommand, verifyScaffoldCommand } from "./commands/verify.js";
 
@@ -31,8 +31,7 @@ program
         process.exitCode = 1;
         return;
       }
-      console.log("LogicGraph initialized in .logicgraph/");
-      console.log(`Index built: ${status.nodeCount} nodes, ${status.edgeCount} edges`);
+      console.log(formatRebuildResult("LogicGraph initialized in .logicgraph/", status));
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;
