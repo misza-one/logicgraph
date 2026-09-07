@@ -2,7 +2,7 @@
 
 All notable changes to LogicGraph are tracked here.
 
-## Unreleased
+## 0.2.0 - 2026-09-07
 
 ### Added
 
